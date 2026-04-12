@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen, Zap, Sparkles } from 'lucide-react'
 import TipTapEditor from '../components/TipTapEditor'
+import { useToast } from '../components/Toast'
 
 export default function Compose() {
   const { id } = useParams()
   const navigate = useNavigate()
   const fileRef = useRef(null)
+  const { addToast } = useToast()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [plainText, setPlainText] = useState('')
@@ -131,12 +133,16 @@ export default function Compose() {
 
       if (res.ok) {
         const saved = await res.json()
+        addToast(status === 'scheduled' ? 'Post scheduled!' : 'Draft saved!')
         if (!id) {
           navigate(`/compose/${saved.id}`, { replace: true })
         }
+      } else {
+        addToast('Failed to save post', 'error')
       }
     } catch (err) {
       console.error('Failed to save post:', err)
+      addToast('Failed to save post', 'error')
     } finally {
       setSaving(false)
     }
@@ -157,17 +163,31 @@ export default function Compose() {
         credentials: 'include',
       })
       if (res.ok) {
+        addToast('Post published successfully!')
         await loadPost(postId)
       } else {
         const err = await res.json()
-        console.error('Publish failed:', err.detail)
+        addToast(err.detail || 'Publishing failed', 'error')
       }
     } catch (err) {
       console.error('Publish failed:', err)
+      addToast('Publishing failed', 'error')
     } finally {
       setPublishing(false)
     }
   }
+
+  // Keyboard shortcut: Cmd/Ctrl+Enter to save draft
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        savePost('draft')
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [content, title, firstComment, timezone, imageId])
 
   async function generateCaption() {
     setAiGenerating(true)
