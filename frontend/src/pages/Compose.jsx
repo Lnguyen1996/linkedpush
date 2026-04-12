@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen, Zap } from 'lucide-react'
+import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen, Zap, Sparkles } from 'lucide-react'
 import TipTapEditor from '../components/TipTapEditor'
 
 export default function Compose() {
@@ -24,6 +24,10 @@ export default function Compose() {
   const [showMediaPicker, setShowMediaPicker] = useState(false)
   const [mediaItems, setMediaItems] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [showAiModal, setShowAiModal] = useState(false)
+  const [aiTopic, setAiTopic] = useState('')
+  const [aiTone, setAiTone] = useState('professional')
+  const [aiGenerating, setAiGenerating] = useState(false)
 
   useEffect(() => {
     if (id) loadPost(id)
@@ -165,6 +169,28 @@ export default function Compose() {
     }
   }
 
+  async function generateCaption() {
+    setAiGenerating(true)
+    try {
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ topic: aiTopic, tone: aiTone }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setContent(`<p>${data.caption.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
+        setShowAiModal(false)
+        setAiTopic('')
+      }
+    } catch (err) {
+      console.error('AI generation failed:', err)
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -175,11 +201,20 @@ export default function Compose() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <PenSquare size={24} className="text-linkedin" />
-        <h1 className="text-2xl font-semibold text-dark">
-          {id ? 'Edit Post' : 'Compose'}
-        </h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <PenSquare size={24} className="text-linkedin" />
+          <h1 className="text-2xl font-semibold text-dark">
+            {id ? 'Edit Post' : 'Compose'}
+          </h1>
+        </div>
+        <button
+          onClick={() => setShowAiModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors"
+        >
+          <Sparkles size={16} />
+          AI Assist
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -369,6 +404,61 @@ export default function Compose() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Assist Modal */}
+      {showAiModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAiModal(false)}>
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-purple-600" />
+                <h3 className="text-sm font-semibold text-dark">AI Caption Assistant</h3>
+              </div>
+              <button onClick={() => setShowAiModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Topic / Idea</label>
+                <textarea
+                  value={aiTopic}
+                  onChange={e => setAiTopic(e.target.value)}
+                  placeholder="Describe what you want to post about..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Tone</label>
+                <div className="flex gap-2">
+                  {['professional', 'casual', 'storytelling'].map(tone => (
+                    <button
+                      key={tone}
+                      onClick={() => setAiTone(tone)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
+                        aiTone === tone
+                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                          : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tone}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={generateCaption}
+                disabled={!aiTopic.trim() || aiGenerating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                <Sparkles size={16} />
+                {aiGenerating ? 'Generating...' : 'Generate Caption'}
+              </button>
             </div>
           </div>
         </div>

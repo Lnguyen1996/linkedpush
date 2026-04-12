@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 8,
+  "completed": 9,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -215,7 +215,7 @@
         "Sorting by any column works (click column header)"
       ],
       "dependencies": [8],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
