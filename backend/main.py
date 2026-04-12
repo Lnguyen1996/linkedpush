@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from database import init_db
-from routers import posts, auth, media, publish
+from routers import posts, auth, media, publish, analytics
 from services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -35,6 +35,7 @@ app.include_router(auth.router)
 app.include_router(posts.router)
 app.include_router(media.router)
 app.include_router(publish.router)
+app.include_router(analytics.router)
 
 # Serve uploaded files
 app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")

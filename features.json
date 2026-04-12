@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 7,
+  "completed": 8,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -177,7 +177,7 @@
         "If publishing fails, status changes to failed with error message stored"
       ],
       "dependencies": [4, 8],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
