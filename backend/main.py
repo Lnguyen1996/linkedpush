@@ -6,12 +6,15 @@ import os
 
 from database import init_db
 from routers import posts, auth, media, publish
+from services.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title="Postiz API", version="0.1.0", lifespan=lifespan)

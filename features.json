@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 6,
+  "completed": 7,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -196,7 +196,7 @@
         "A Publish Now button on the composer immediately publishes without scheduling"
       ],
       "dependencies": [3, 2],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
