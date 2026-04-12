@@ -1,0 +1,244 @@
+{
+  "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
+  "total_features": 11,
+  "completed": 0,
+  "failed": 0,
+  "escalated": 0,
+  "features": [
+    {
+      "id": 1,
+      "name": "Project Scaffolding and Base Layout",
+      "description": "Initialize the monorepo with frontend (React+Vite+Tailwind) and backend (FastAPI+SQLite). Create the app shell with sidebar navigation, top bar, and main content area. Set up Vite proxy to backend.",
+      "acceptance_criteria": [
+        "Running npm run dev in /frontend starts Vite on port 5173",
+        "Running uvicorn in /backend starts FastAPI on port 8000",
+        "GET /api/health returns {\"status\": \"ok\"} and is accessible from the frontend via Vite proxy",
+        "App shell renders with a left sidebar containing navigation links (Dashboard, Compose, Calendar, Media, Analytics)",
+        "Clicking sidebar links changes the main content area (client-side routing)",
+        "Layout is responsive — sidebar collapses to hamburger on mobile widths"
+      ],
+      "dependencies": [],
+      "status": "in_progress",
+      "sprint_contract": {
+        "deliverables": [
+          "Frontend project with React+Vite+Tailwind configured",
+          "Backend project with FastAPI+SQLite configured",
+          "App shell with sidebar navigation and routing",
+          "Vite proxy to backend API",
+          "Responsive layout with collapsible sidebar"
+        ],
+        "success_criteria": [
+          "npm run dev in /frontend starts Vite on port 5173",
+          "uvicorn in /backend starts FastAPI on port 8000",
+          "GET /api/health returns {\"status\": \"ok\"} via Vite proxy",
+          "Sidebar shows Dashboard, Compose, Calendar, Media, Analytics links",
+          "Clicking sidebar links changes main content area via React Router",
+          "Sidebar collapses to hamburger menu on mobile widths"
+        ],
+        "fail_conditions": [
+          "Frontend or backend fails to start",
+          "Vite proxy to backend does not work",
+          "Navigation links do not change content area"
+        ],
+        "out_of_scope": [
+          "Database models",
+          "Authentication",
+          "Actual page content beyond placeholders"
+        ]
+      },
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 2,
+      "name": "Database Models and API Foundation",
+      "description": "Create SQLAlchemy models for Users, Posts, Comments, Media, and Analytics. Build CRUD API endpoints for posts with pagination and status filtering.",
+      "acceptance_criteria": [
+        "POST /api/posts creates a post with title, content, scheduled_at, timezone, status fields and returns 201",
+        "GET /api/posts returns paginated list with ?page=1&per_page=10&status=draft query params",
+        "GET /api/posts/{id} returns a single post with all fields",
+        "PUT /api/posts/{id} updates a post and returns 200",
+        "DELETE /api/posts/{id} deletes a post and returns 204",
+        "Database schema includes users, posts, comments, media, analytics tables"
+      ],
+      "dependencies": [1],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 3,
+      "name": "LinkedIn OAuth2 Authentication",
+      "description": "Implement LinkedIn OAuth2 login flow with session management and protected routes.",
+      "acceptance_criteria": [
+        "Login page shows a Sign in with LinkedIn button",
+        "Clicking the button redirects to LinkedIn OAuth2 authorization URL",
+        "After authorization, user is redirected back and a session is created",
+        "User's LinkedIn profile name and avatar are displayed in the top bar",
+        "Unauthenticated requests to /api/posts return 401",
+        "A logout button clears the session and redirects to login"
+      ],
+      "dependencies": [1, 2],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 4,
+      "name": "Post Composer with Rich Text Editor",
+      "description": "Build a post composition page with TipTap editor, character counting, first-comment field, and save/schedule actions.",
+      "acceptance_criteria": [
+        "Compose page has a TipTap editor with toolbar (bold, italic, list, link)",
+        "Character counter updates live and turns red when approaching 3000 chars",
+        "A collapsible First Comment section shows a second text input",
+        "Save as Draft button saves the post with status draft",
+        "Schedule button opens a date/time picker and saves with status scheduled",
+        "Saved posts appear in the post list on the Dashboard"
+      ],
+      "dependencies": [2, 3],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 5,
+      "name": "Image Upload and Media Library",
+      "description": "Allow image uploads for posts, build a media library with thumbnail grid, and enable attaching images to posts from composer or library.",
+      "acceptance_criteria": [
+        "Upload button in composer accepts image files (JPEG, PNG, GIF, max 5MB)",
+        "Uploaded images are stored on disk and a record is created in the media table",
+        "Media library page shows all uploads as a thumbnail grid",
+        "Clicking a media item shows a larger preview with metadata (size, date, filename)",
+        "Users can select images from the media library to attach to a post",
+        "Attached images show as preview thumbnails in the composer"
+      ],
+      "dependencies": [2, 3],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 6,
+      "name": "Calendar View for Scheduled Posts",
+      "description": "Monthly/weekly calendar showing scheduled posts color-coded by status with click-to-edit navigation.",
+      "acceptance_criteria": [
+        "Calendar page renders a monthly calendar grid with current month",
+        "Scheduled posts appear on their scheduled date cells",
+        "Posts are color-coded: blue=scheduled, green=published, red=failed, gray=draft",
+        "Week/Month view toggle works",
+        "Clicking a post on the calendar navigates to the composer with that post loaded",
+        "Navigation arrows move between months/weeks"
+      ],
+      "dependencies": [2, 4],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 7,
+      "name": "Timezone-Aware Scheduling Engine",
+      "description": "APScheduler-based engine that polls for due posts and publishes them, with timezone-aware scheduling.",
+      "acceptance_criteria": [
+        "User can select a timezone from a dropdown when scheduling a post",
+        "Scheduled times are stored in UTC and displayed in the user's timezone",
+        "APScheduler job runs every 60 seconds checking for due posts",
+        "When a post is due, its status changes from scheduled to publishing",
+        "If publishing succeeds, status changes to published with linkedin_post_id stored",
+        "If publishing fails, status changes to failed with error message stored"
+      ],
+      "dependencies": [4, 8],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 8,
+      "name": "LinkedIn API Publishing and First-Comment",
+      "description": "Integrate with LinkedIn API v2 to publish text and image posts, auto-post first comments, and handle API errors.",
+      "acceptance_criteria": [
+        "Publishing a post calls LinkedIn API v2 ugcPosts endpoint",
+        "Text posts are published successfully and the LinkedIn post URN is stored",
+        "Image posts upload the image to LinkedIn then publish with the image asset",
+        "If a first-comment is set, it is posted as a comment on the LinkedIn post after publishing",
+        "API errors (rate limit, auth expired, network) are caught and stored as error messages",
+        "A Publish Now button on the composer immediately publishes without scheduling"
+      ],
+      "dependencies": [3, 2],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 9,
+      "name": "Post Analytics Dashboard",
+      "description": "Fetch and display LinkedIn post analytics with summary cards, per-post stats table, and column sorting.",
+      "acceptance_criteria": [
+        "Analytics page shows summary cards: total posts, total impressions, total engagements",
+        "A table lists all published posts with columns: title, published date, impressions, likes, comments, shares",
+        "Analytics data is fetched from LinkedIn API and cached in the analytics table",
+        "A Refresh button re-fetches analytics for all published posts",
+        "Posts with zero engagement show No data yet instead of zeros",
+        "Sorting by any column works (click column header)"
+      ],
+      "dependencies": [8],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 10,
+      "name": "AI-Assisted Caption Writing",
+      "description": "Claude API-powered writing assistant that generates LinkedIn-optimized captions from user prompts with tone selection.",
+      "acceptance_criteria": [
+        "Composer has an AI Assist button that opens a prompt modal",
+        "User enters a topic/idea and selects a tone (professional, casual, storytelling)",
+        "Clicking Generate calls the backend /api/ai/generate endpoint",
+        "Backend calls Claude API with a LinkedIn-optimized system prompt",
+        "Generated caption is inserted into the editor (user can edit before saving)",
+        "Loading state shows while the API call is in progress"
+      ],
+      "dependencies": [4],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    },
+    {
+      "id": 11,
+      "name": "Final Polish and Responsive Design",
+      "description": "Add loading states, error boundaries, toast notifications, empty states, full responsive design, and keyboard shortcuts.",
+      "acceptance_criteria": [
+        "All API calls show loading spinners while in progress",
+        "Error states show user-friendly messages with retry buttons",
+        "Empty states show helpful messages (e.g., No posts yet — create your first!)",
+        "Toast notifications appear for success/error actions",
+        "All pages are usable on mobile (375px width) without horizontal scrolling",
+        "Keyboard shortcut Cmd/Ctrl+Enter submits the composer form"
+      ],
+      "dependencies": [4, 5, 6, 9, 10],
+      "status": "pending",
+      "sprint_contract": null,
+      "eval_cycles": 0,
+      "max_cycles": 3,
+      "eval_scores": null
+    }
+  ]
+}
