@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen } from 'lucide-react'
+import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen, Zap } from 'lucide-react'
 import TipTapEditor from '../components/TipTapEditor'
 
 export default function Compose() {
@@ -17,6 +17,7 @@ export default function Compose() {
   const [scheduledTime, setScheduledTime] = useState('')
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [imageId, setImageId] = useState(null)
   const [imageUrl, setImageUrl] = useState(null)
@@ -134,6 +135,33 @@ export default function Compose() {
       console.error('Failed to save post:', err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function publishNow() {
+    // Save first if new post
+    if (!id) {
+      await savePost('draft')
+    }
+    const postId = id || null
+    if (!postId) return
+
+    setPublishing(true)
+    try {
+      const res = await fetch(`/api/posts/${postId}/publish`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        await loadPost(postId)
+      } else {
+        const err = await res.json()
+        console.error('Publish failed:', err.detail)
+      }
+    } catch (err) {
+      console.error('Publish failed:', err)
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -303,6 +331,15 @@ export default function Compose() {
               {saving ? 'Scheduling...' : 'Schedule Post'}
             </button>
           )}
+
+          <button
+            onClick={publishNow}
+            disabled={publishing || saving}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-success text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 ml-auto"
+          >
+            <Zap size={16} />
+            {publishing ? 'Publishing...' : 'Publish Now'}
+          </button>
         </div>
       </div>
 
