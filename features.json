@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 0,
+  "completed": 1,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -18,7 +18,7 @@
         "Layout is responsive — sidebar collapses to hamburger on mobile widths"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "passed",
       "sprint_contract": {
         "deliverables": [
           "Frontend project with React+Vite+Tailwind configured",
@@ -63,8 +63,27 @@
         "Database schema includes users, posts, comments, media, analytics tables"
       ],
       "dependencies": [1],
-      "status": "pending",
-      "sprint_contract": null,
+      "status": "in_progress",
+      "sprint_contract": {
+        "deliverables": [
+          "SQLAlchemy models for users, posts, comments, media, analytics",
+          "Database initialization and session management",
+          "Full CRUD API for posts with pagination and filtering"
+        ],
+        "success_criteria": [
+          "POST /api/posts creates a post and returns 201",
+          "GET /api/posts returns paginated list with page, per_page, status params",
+          "GET /api/posts/{id} returns a single post",
+          "PUT /api/posts/{id} updates a post and returns 200",
+          "DELETE /api/posts/{id} deletes and returns 204",
+          "Database has users, posts, comments, media, analytics tables"
+        ],
+        "fail_conditions": [
+          "Any CRUD endpoint returns 500 on valid input",
+          "Database tables are missing"
+        ],
+        "out_of_scope": ["Authentication middleware", "LinkedIn API integration"]
+      },
       "eval_cycles": 0,
       "max_cycles": 3,
       "eval_scores": null
