@@ -1,9 +1,31 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.env
-__pycache__/
-*.pyc
-venv/
-data/
 .vite/
-*.egg-info/
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+
+# Secrets and config
+.env
+backend/appsettings.json
+backend/appsettings.Development.json
+backend/appsettings.*.local.json
+
+# Data and uploads
+data/
+
+# Test results
+test-results/
+
+# IDE
+.vs/
+.idea/
+*.swp
+
+# Misc
+nanobanana-output/
