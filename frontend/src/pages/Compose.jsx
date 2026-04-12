@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send } from 'lucide-react'
+import { PenSquare, ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X, FolderOpen } from 'lucide-react'
 import TipTapEditor from '../components/TipTapEditor'
 
 export default function Compose() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const fileRef = useRef(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [plainText, setPlainText] = useState('')
@@ -17,11 +18,14 @@ export default function Compose() {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [imageId, setImageId] = useState(null)
+  const [imageUrl, setImageUrl] = useState(null)
+  const [showMediaPicker, setShowMediaPicker] = useState(false)
+  const [mediaItems, setMediaItems] = useState([])
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
-    if (id) {
-      loadPost(id)
-    }
+    if (id) loadPost(id)
   }, [id])
 
   async function loadPost(postId) {
@@ -43,12 +47,55 @@ export default function Compose() {
           setShowSchedule(true)
         }
         if (post.timezone) setTimezone(post.timezone)
+        if (post.image_id) {
+          setImageId(post.image_id)
+          setImageUrl(post.image_url)
+        }
       }
     } catch (err) {
       console.error('Failed to load post:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleImageUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+      if (res.ok) {
+        const media = await res.json()
+        setImageId(media.id)
+        setImageUrl(`/uploads/${media.filename}`)
+      }
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function openMediaPicker() {
+    try {
+      const res = await fetch('/api/media', { credentials: 'include' })
+      if (res.ok) setMediaItems(await res.json())
+    } catch {}
+    setShowMediaPicker(true)
+  }
+
+  function selectFromLibrary(item) {
+    setImageId(item.id)
+    setImageUrl(`/uploads/${item.filename}`)
+    setShowMediaPicker(false)
   }
 
   async function savePost(status) {
@@ -60,6 +107,7 @@ export default function Compose() {
         status,
         first_comment: firstComment || null,
         timezone,
+        image_id: imageId,
       }
 
       if (status === 'scheduled' && scheduledDate && scheduledTime) {
@@ -124,6 +172,46 @@ export default function Compose() {
             setPlainText(text)
           }}
         />
+
+        {/* Image attachment */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          {imageUrl ? (
+            <div className="relative inline-block">
+              <img src={imageUrl} alt="Attached" className="max-h-40 rounded-lg border border-gray-200" />
+              <button
+                onClick={() => { setImageId(null); setImageUrl(null) }}
+                className="absolute -top-2 -right-2 p-1 bg-white rounded-full border border-gray-200 shadow-sm hover:bg-gray-50"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                <ImagePlus size={16} />
+                {uploading ? 'Uploading...' : 'Upload Image'}
+              </button>
+              <button
+                onClick={openMediaPicker}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <FolderOpen size={16} />
+                From Library
+              </button>
+            </div>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+        </div>
 
         {/* First Comment Section */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -217,6 +305,37 @@ export default function Compose() {
           )}
         </div>
       </div>
+
+      {/* Media Picker Modal */}
+      {showMediaPicker && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowMediaPicker(false)}>
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-dark">Select from Media Library</h3>
+              <button onClick={() => setShowMediaPicker(false)} className="p-1 rounded hover:bg-gray-100">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[60vh]">
+              {mediaItems.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No images in library</p>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {mediaItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => selectFromLibrary(item)}
+                      className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-linkedin transition-colors"
+                    >
+                      <img src={`/uploads/${item.filename}`} alt={item.original_filename} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
