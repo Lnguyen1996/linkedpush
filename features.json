@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 10,
+  "completed": 11,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -253,7 +253,7 @@
         "Keyboard shortcut Cmd/Ctrl+Enter submits the composer form"
       ],
       "dependencies": [4, 5, 6, 9, 10],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
