@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 2,
+  "completed": 3,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -101,7 +101,7 @@
         "A logout button clears the session and redirects to login"
       ],
       "dependencies": [1, 2],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
