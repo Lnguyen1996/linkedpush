@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 4,
+  "completed": 5,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -139,7 +139,7 @@
         "Attached images show as preview thumbnails in the composer"
       ],
       "dependencies": [2, 3],
-      "status": "pending",
+      "status": "passed",
       "sprint_contract": null,
       "eval_cycles": 0,
       "max_cycles": 3,
