@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from database import init_db
-from routers import posts
+from routers import posts, auth
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ app.add_middleware(
 os.makedirs("data/uploads", exist_ok=True)
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(posts.router)
 
 # Serve uploaded files

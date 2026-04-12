@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   PenSquare,
@@ -10,6 +10,7 @@ import {
   X,
   LogOut,
 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -21,6 +22,23 @@ const navItems = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user, loading, logout } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  const initials = user.name
+    ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U'
 
   return (
     <div className="flex h-screen bg-surface">
@@ -80,7 +98,10 @@ export default function Layout() {
 
         {/* User section */}
         <div className="border-t border-gray-200 px-3 py-4">
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-colors">
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-colors"
+          >
             <LogOut size={20} />
             Logout
           </button>
@@ -98,9 +119,18 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <div className="ml-auto flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-linkedin/20 flex items-center justify-center">
-              <span className="text-linkedin text-sm font-medium">U</span>
-            </div>
+            <span className="text-sm text-gray-600 hidden sm:block">{user.name}</span>
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-linkedin/20 flex items-center justify-center">
+                <span className="text-linkedin text-sm font-medium">{initials}</span>
+              </div>
+            )}
           </div>
         </header>
 

@@ -1,7 +1,7 @@
 {
   "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
-  "completed": 1,
+  "completed": 2,
   "failed": 0,
   "escalated": 0,
   "features": [
@@ -63,7 +63,7 @@
         "Database schema includes users, posts, comments, media, analytics tables"
       ],
       "dependencies": [1],
-      "status": "in_progress",
+      "status": "passed",
       "sprint_contract": {
         "deliverables": [
           "SQLAlchemy models for users, posts, comments, media, analytics",

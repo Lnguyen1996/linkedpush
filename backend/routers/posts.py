@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 import math
 from database import get_db
-from models import Post, Comment
+from models import Post, Comment, User
 from schemas import PostCreate, PostUpdate, PostResponse, PostList
+from routers.auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -39,8 +39,9 @@ def post_to_response(post: Post) -> PostResponse:
 
 
 @router.post("", status_code=201, response_model=PostResponse)
-def create_post(data: PostCreate, db: Session = Depends(get_db)):
+def create_post(data: PostCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     post = Post(
+        user_id=user.id,
         title=data.title,
         content=data.content,
         scheduled_at=data.scheduled_at,
@@ -65,9 +66,10 @@ def list_posts(
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Post)
+    query = db.query(Post).filter(Post.user_id == user.id)
     if status:
         query = query.filter(Post.status == status)
 
@@ -90,7 +92,7 @@ def list_posts(
 
 
 @router.get("/{post_id}", response_model=PostResponse)
-def get_post(post_id: int, db: Session = Depends(get_db)):
+def get_post(post_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -98,7 +100,7 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{post_id}", response_model=PostResponse)
-def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
+def update_post(post_id: int, data: PostUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -122,7 +124,7 @@ def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{post_id}", status_code=204)
-def delete_post(post_id: int, db: Session = Depends(get_db)):
+def delete_post(post_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
