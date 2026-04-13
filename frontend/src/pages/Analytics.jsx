@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, Eye, Heart, MessageCircle, Share2, RefreshCw, ArrowUpDown } from 'lucide-react'
+import {
+  BarChart3, Eye, Heart, MessageCircle, Share2, RefreshCw,
+  ArrowUpDown, TrendingUp, Users, Zap, Loader2, ArrowUp, ArrowDown
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table, TableHeader, TableBody, TableRow, TableCell, TableHead
+} from '@/components/ui/table'
 
 export default function Analytics() {
   const [data, setData] = useState(null)
@@ -58,148 +69,291 @@ export default function Analytics() {
     return sortDir === 'asc' ? aVal - bVal : bVal - aVal
   }) || []
 
+  const maxImpressions = Math.max(0, ...(sortedPosts.map(p => p.impressions || 0)))
+  const maxLikes = Math.max(0, ...(sortedPosts.map(p => p.likes || 0)))
+
   if (loading) {
     return (
-      <div className="text-center py-12 text-gray-400">Loading analytics...</div>
+      <div>
+        <div className="mb-8">
+          <Skeleton className="h-8 w-40 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
     )
   }
 
   const summary = data?.summary || { total_posts: 0, total_impressions: 0, total_engagements: 0 }
+  const avgEngagement = summary.total_posts > 0
+    ? (summary.total_engagements / summary.total_posts).toFixed(1)
+    : '0'
 
-  const SortHeader = ({ label, field }) => (
-    <button
+  const SortHeader = ({ label, field, align = 'left' }) => (
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={() => toggleSort(field)}
-      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+      className={cn(
+        'h-auto px-0 py-0 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground',
+        align === 'right' && 'ml-auto'
+      )}
     >
       {label}
-      <ArrowUpDown size={12} className={sortKey === field ? 'text-linkedin' : 'text-gray-300'} />
-    </button>
+      {sortKey === field ? (
+        sortDir === 'asc' ? <ArrowUp size={11} className="text-primary ml-1" /> : <ArrowDown size={11} className="text-primary ml-1" />
+      ) : (
+        <ArrowUpDown size={11} className="text-muted-foreground/40 ml-1" />
+      )}
+    </Button>
   )
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <BarChart3 size={24} className="text-linkedin" />
-          <h1 className="text-2xl font-semibold text-dark">Analytics</h1>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
+          <p className="text-sm text-muted-foreground mt-1">Track your LinkedIn post performance</p>
         </div>
-        <button
+        <Button
+          variant="outline"
           onClick={handleRefresh}
           disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
-          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+          <RefreshCw size={15} className={cn(refreshing && 'animate-spin')} />
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <BarChart3 size={16} />
-            Total Posts
-          </div>
-          <div className="text-2xl font-semibold text-dark">{summary.total_posts}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Eye size={16} />
-            Total Impressions
-          </div>
-          <div className="text-2xl font-semibold text-dark">{summary.total_impressions.toLocaleString()}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Heart size={16} />
-            Total Engagements
-          </div>
-          <div className="text-2xl font-semibold text-dark">{summary.total_engagements.toLocaleString()}</div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
+        <SummaryCard
+          label="Published Posts"
+          value={summary.total_posts}
+          icon={BarChart3}
+          color="purple"
+          detail="all time"
+        />
+        <SummaryCard
+          label="Total Impressions"
+          value={summary.total_impressions}
+          icon={Eye}
+          color="purple"
+          detail="across all posts"
+          format
+        />
+        <SummaryCard
+          label="Total Engagements"
+          value={summary.total_engagements}
+          icon={Heart}
+          color="rose"
+          detail="likes + comments + shares"
+          format
+        />
+        <SummaryCard
+          label="Avg. Engagement"
+          value={avgEngagement}
+          icon={TrendingUp}
+          color="emerald"
+          detail="per post"
+        />
       </div>
+
+      {/* Engagement breakdown mini-bar */}
+      {summary.total_engagements > 0 && (
+        <Card className="mb-6">
+          <CardContent>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Engagement Breakdown</span>
+            </div>
+            <EngagementBar data={data} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Posts table */}
       {sortedPosts.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <BarChart3 size={40} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No published posts yet</p>
-          <p className="text-sm text-gray-400 mt-1">Publish posts to see analytics here</p>
-        </div>
+        <Card className="p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-purple/5 dark:bg-purple/10 flex items-center justify-center mx-auto mb-5">
+            <BarChart3 size={28} className="text-purple/40" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No published posts yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Publish posts to see analytics here. Your engagement data will appear automatically.
+          </p>
+        </Card>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3"><SortHeader label="Title" field="title" /></th>
-                  <th className="text-left px-4 py-3"><SortHeader label="Published" field="published_at" /></th>
-                  <th className="text-right px-4 py-3"><SortHeader label="Impressions" field="impressions" /></th>
-                  <th className="text-right px-4 py-3"><SortHeader label="Likes" field="likes" /></th>
-                  <th className="text-right px-4 py-3"><SortHeader label="Comments" field="comments" /></th>
-                  <th className="text-right px-4 py-3"><SortHeader label="Shares" field="shares" /></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedPosts.map(post => (
-                  <tr key={post.post_id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm text-dark font-medium max-w-[200px] truncate">
-                      {post.title || 'Untitled'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {post.published_at
-                        ? new Date(post.published_at).toLocaleDateString(undefined, {
-                            month: 'short', day: 'numeric', year: 'numeric',
-                          })
-                        : '—'
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {post.has_engagement ? (
-                        <span className="flex items-center justify-end gap-1">
-                          <Eye size={14} className="text-gray-400" />
-                          {post.impressions.toLocaleString()}
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-5 py-4"><SortHeader label="Title" field="title" /></TableHead>
+                <TableHead className="px-5 py-4"><SortHeader label="Published" field="published_at" /></TableHead>
+                <TableHead className="px-5 py-4 text-right"><SortHeader label="Impressions" field="impressions" align="right" /></TableHead>
+                <TableHead className="px-5 py-4 text-right"><SortHeader label="Likes" field="likes" align="right" /></TableHead>
+                <TableHead className="px-5 py-4 text-right"><SortHeader label="Comments" field="comments" align="right" /></TableHead>
+                <TableHead className="px-5 py-4 text-right"><SortHeader label="Shares" field="shares" align="right" /></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedPosts.map((post, idx) => (
+                <TableRow
+                  key={post.post_id}
+                  className={cn(idx % 2 !== 0 && 'bg-muted/30')}
+                >
+                  <TableCell className="px-5 py-4 font-medium max-w-[220px] truncate">
+                    {post.title || 'Untitled'}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-muted-foreground">
+                    {post.published_at
+                      ? new Date(post.published_at).toLocaleDateString(undefined, {
+                          month: 'short', day: 'numeric', year: 'numeric',
+                        })
+                      : '—'
+                    }
+                  </TableCell>
+                  <TableCell className="px-5 py-4">
+                    {post.has_engagement ? (
+                      <div className="relative">
+                        <div
+                          className="absolute inset-y-0 right-0 bg-purple/5 dark:bg-purple/10 rounded-sm transition-all duration-500"
+                          style={{ width: `${maxImpressions > 0 ? (post.impressions / maxImpressions) * 100 : 0}%` }}
+                        />
+                        <span className="relative font-medium text-foreground">
+                          {post.impressions?.toLocaleString() || '0'}
                         </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No data yet</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {post.has_engagement ? (
-                        <span className="flex items-center justify-end gap-1">
-                          <Heart size={14} className="text-gray-400" />
-                          {post.likes}
+                      </div>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] font-normal italic">No data</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-5 py-4">
+                    {post.has_engagement ? (
+                      <div className="relative">
+                        <div
+                          className="absolute inset-y-0 right-0 bg-rose-500/5 dark:bg-rose-500/10 rounded-sm transition-all duration-500"
+                          style={{ width: `${maxLikes > 0 ? (post.likes / maxLikes) * 100 : 0}%` }}
+                        />
+                        <span className="relative font-medium text-foreground">
+                          {post.likes?.toLocaleString() || '0'}
                         </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No data yet</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {post.has_engagement ? (
-                        <span className="flex items-center justify-end gap-1">
-                          <MessageCircle size={14} className="text-gray-400" />
-                          {post.comments}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No data yet</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {post.has_engagement ? (
-                        <span className="flex items-center justify-end gap-1">
-                          <Share2 size={14} className="text-gray-400" />
-                          {post.shares}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No data yet</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </div>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] font-normal italic">No data</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-right">
+                    {post.has_engagement ? (
+                      <Badge variant="outline" className="gap-1.5 font-medium">
+                        <MessageCircle size={13} className="text-purple-400" />
+                        {post.comments}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] font-normal italic">No data</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-right">
+                    {post.has_engagement ? (
+                      <Badge variant="outline" className="gap-1.5 font-medium">
+                        <Share2 size={13} className="text-emerald-400" />
+                        {post.shares}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] font-normal italic">No data</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function SummaryCard({ label, value, icon: Icon, color, detail, format }) {
+  const colorMap = {
+    purple: { icon: 'bg-purple/10', text: 'text-purple' },
+    purple: { icon: 'bg-purple-100 dark:bg-purple-950/50', text: 'text-purple-600 dark:text-purple-400' },
+    rose: { icon: 'bg-rose-100 dark:bg-rose-950/50', text: 'text-rose-600 dark:text-rose-400' },
+    emerald: { icon: 'bg-emerald-100 dark:bg-emerald-950/50', text: 'text-emerald-600 dark:text-emerald-400' },
+  }
+  const c = colorMap[color] || colorMap.purple
+  const displayValue = format ? Number(value).toLocaleString() : value
+
+  return (
+    <Card className="card-hover">
+      <CardContent>
+        <div className="flex items-center justify-between mb-4">
+          <div className={cn('p-2.5 rounded-xl', c.icon)}>
+            <Icon size={18} className={c.text} />
           </div>
         </div>
-      )}
+        <div className="text-2xl font-bold text-foreground">{displayValue}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+        {detail && <div className="text-[10px] text-muted-foreground/60 mt-1">{detail}</div>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function EngagementBar({ data }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 100)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (!data?.posts?.length) return null
+
+  const totals = data.posts.reduce((acc, p) => ({
+    likes: acc.likes + (p.likes || 0),
+    comments: acc.comments + (p.comments || 0),
+    shares: acc.shares + (p.shares || 0),
+  }), { likes: 0, comments: 0, shares: 0 })
+
+  const total = totals.likes + totals.comments + totals.shares
+  if (total === 0) return null
+
+  const segments = [
+    { label: 'Likes', value: totals.likes, color: 'bg-rose-400', pct: (totals.likes / total * 100).toFixed(1) },
+    { label: 'Comments', value: totals.comments, color: 'bg-purple-400', pct: (totals.comments / total * 100).toFixed(1) },
+    { label: 'Shares', value: totals.shares, color: 'bg-emerald-400', pct: (totals.shares / total * 100).toFixed(1) },
+  ]
+
+  return (
+    <div>
+      {/* Bar */}
+      <div className="flex h-3 rounded-full overflow-hidden bg-muted mb-3">
+        {segments.map(seg => (
+          seg.value > 0 && (
+            <div
+              key={seg.label}
+              className={cn(seg.color, 'transition-all duration-700 ease-out')}
+              style={{ width: mounted ? `${seg.pct}%` : '0%' }}
+            />
+          )
+        ))}
+      </div>
+      {/* Labels */}
+      <div className="flex items-center gap-6">
+        {segments.map(seg => (
+          <div key={seg.label} className="flex items-center gap-2">
+            <span className={cn('w-2.5 h-2.5 rounded-full', seg.color)} />
+            <span className="text-xs text-muted-foreground">{seg.label}</span>
+            <span className="text-xs font-semibold text-foreground">{seg.value.toLocaleString()}</span>
+            <span className="text-[10px] text-muted-foreground/60">({seg.pct}%)</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
