@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, CalendarClock, BarChart3, Zap, Sparkles } from 'lucide-react'
 import AppLogo from '../components/AppLogo'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,10 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 const features = [
-  { title: 'Smart Scheduling', desc: 'Timezone-aware scheduling' },
-  { title: 'Analytics', desc: 'Impressions and engagement' },
-  { title: 'Auto-Publish', desc: 'Posts go live on time' },
-  { title: 'AI Writing', desc: 'Claude-powered captions' },
+  { title: 'Smart Scheduling', desc: 'Timezone-aware scheduling', icon: CalendarClock },
+  { title: 'Analytics', desc: 'Impressions and engagement', icon: BarChart3 },
+  { title: 'Auto-Publish', desc: 'Posts go live on time', icon: Zap },
+  { title: 'AI Writing', desc: 'Claude-powered captions', icon: Sparkles },
 ]
 
 export default function Login() {
@@ -33,7 +33,7 @@ export default function Login() {
   }
 
   if (user) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/app" replace />
   }
 
   return (
@@ -85,8 +85,8 @@ export default function Login() {
             <ul className="space-y-2.5">
               {[
                 'OAuth2 authentication — we never see your password',
-                'Self-hosted — your data stays on your server',
-                'Open source — inspect every line of code',
+                'Managed infrastructure — focus on writing, not setup',
+                'Built for creators who want consistent growth',
               ].map(text => (
                 <li key={text} className="flex gap-3 text-sm text-discord-text-secondary">
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-discord-success/15">
@@ -104,14 +104,17 @@ export default function Login() {
                 What you get
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-                {features.map(({ title, desc }) => (
+                {features.map(({ title, desc, icon: Icon }) => (
                   <Badge
                     key={title}
                     variant="outline"
-                    className="h-auto w-full flex-col items-start gap-0 rounded-lg border-white/[0.06] bg-white/[0.02] px-3 py-2.5 shadow-[inset_3px_0_0_0_rgba(88,101,242,0.55)] transition-colors hover:bg-white/[0.04]"
+                    className="h-auto w-full flex-col items-start gap-0 rounded-lg border-white/[0.06] bg-white/[0.02] px-3 py-2.5 shadow-[inset_3px_0_0_0_rgba(124,58,237,0.55)] transition-colors hover:bg-white/[0.04]"
                   >
-                    <span className="text-xs font-medium text-discord-text-primary">{title}</span>
-                    <span className="mt-0.5 text-[11px] font-normal leading-snug text-discord-text-secondary">{desc}</span>
+                    <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-discord-text-primary">
+                      <Icon size={13} className="text-purple" />
+                      {title}
+                    </span>
+                    <span className="text-[11px] font-normal leading-snug text-discord-text-secondary">{desc}</span>
                   </Badge>
                 ))}
               </div>
@@ -120,7 +123,7 @@ export default function Login() {
         </Card>
 
         <p className="mt-4 text-center text-xs text-discord-text-secondary/80">
-          Self-hosted. Open source. Your data stays yours.
+          Built for creators who want a faster LinkedIn workflow.
         </p>
       </div>
     </div>

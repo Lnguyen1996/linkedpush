@@ -8,12 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose
 } from '@/components/ui/dialog'
+import MediaPreviewEditor from '@/components/MediaPreviewEditor'
 
 export default function MediaLibrary() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [preview, setPreview] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const [copied, setCopied] = useState(false)
   const fileRef = useRef(null)
@@ -147,23 +149,26 @@ export default function MediaLibrary() {
                 </Button>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-children">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4 stagger-children">
                 {items.map(item => (
                   <Card
                     key={item.id}
                     className={cn(
-                      'group relative aspect-square overflow-hidden cursor-pointer border-2 transition-all duration-200 hover:shadow-lg p-0',
+                      'group relative overflow-hidden cursor-pointer border-2 transition-all duration-200 hover:shadow-lg p-0',
                       selected?.id === item.id
                         ? 'border-primary shadow-md ring-2 ring-primary/20'
                         : 'border-border hover:border-foreground/20'
                     )}
-                    onClick={() => setSelected(item)}
+                    onClick={() => { setSelected(item); setPreview(item) }}
                   >
-                    <img
-                      src={`/uploads/${item.filename}`}
-                      alt={item.original_filename}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    <div className="bg-white/5 flex items-center justify-center" style={{ minHeight: 200 }}>
+                      <img
+                        src={`/api/media/${item.id}/file?v=${item.file_size ?? 0}`}
+                        alt={item.original_filename}
+                        className="w-full h-auto max-h-80 object-contain group-hover:scale-[1.02] transition-transform duration-300"
+                        style={{ imageRendering: '-webkit-optimize-contrast' }}
+                      />
+                    </div>
                     {/* Hover overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -185,7 +190,7 @@ export default function MediaLibrary() {
 
         {/* Detail panel (desktop sidebar) */}
         {selected && (
-          <div className="w-80 shrink-0 hidden lg:block animate-fade-in-up">
+          <div className="w-96 shrink-0 hidden lg:block animate-fade-in-up">
             <Card className="sticky top-24 overflow-hidden">
               <CardHeader className="flex-row items-center justify-between border-b">
                 <CardTitle className="text-sm">Details</CardTitle>
@@ -200,12 +205,14 @@ export default function MediaLibrary() {
               </CardHeader>
 
               <CardContent className="pt-4">
-                {/* Preview */}
-                <img
-                  src={`/uploads/${selected.filename}`}
-                  alt={selected.original_filename}
-                  className="w-full rounded-xl border border-border mb-4"
-                />
+                {/* Preview — click to open full size in new tab */}
+                <a href={`/api/media/${selected.id}/file?v=${selected.file_size ?? 0}`} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={`/api/media/${selected.id}/file?v=${selected.file_size ?? 0}`}
+                    alt={selected.original_filename}
+                    className="w-full rounded-xl border border-border mb-4 cursor-zoom-in hover:opacity-90 transition-opacity"
+                  />
+                </a>
 
                 {/* Metadata */}
                 <div className="space-y-3">
@@ -229,7 +236,7 @@ export default function MediaLibrary() {
                     variant="outline"
                     className="w-full justify-start"
                     onClick={() => {
-                      navigator.clipboard.writeText(`/uploads/${selected.filename}`).then(() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/api/media/${selected.id}/file`).then(() => {
                         setCopied(true)
                         setTimeout(() => setCopied(false), 1500)
                       })
@@ -253,56 +260,64 @@ export default function MediaLibrary() {
         )}
       </div>
 
-      {/* Mobile preview dialog */}
-      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null) }}>
-        <DialogContent className="lg:hidden sm:max-w-lg">
-          {selected && (
+      {/* Full-size preview lightbox */}
+      <Dialog open={!!preview} onOpenChange={(open) => { if (!open) setPreview(null) }}>
+        <DialogContent className="max-h-[92vh] sm:max-w-5xl overflow-y-auto p-0 bg-black/95 border-white/10">
+          {preview && (
             <>
-              <DialogHeader>
-                <DialogTitle className="truncate">{selected.original_filename}</DialogTitle>
+              <DialogHeader className="px-5 pt-4 pb-2">
+                <DialogTitle className="truncate text-white">{preview.original_filename}</DialogTitle>
               </DialogHeader>
 
-              <img
-                src={`/uploads/${selected.filename}`}
-                alt={selected.original_filename}
-                className="w-full rounded-xl border border-border"
-              />
-
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{formatSize(selected.file_size)}</Badge>
-                {selected.width && selected.height && (
-                  <Badge variant="secondary">{selected.width} x {selected.height}px</Badge>
-                )}
-                <Badge variant="outline">
-                  {new Date(selected.created_at).toLocaleDateString(undefined, {
-                    month: 'short', day: 'numeric', year: 'numeric',
-                  })}
-                </Badge>
+              <div className="px-4 pb-2">
+                <MediaPreviewEditor
+                  key={`${preview.id}-${preview.file_size ?? 0}`}
+                  preview={preview}
+                  onSaved={updated => {
+                    setPreview(updated)
+                    setSelected(s => (s?.id === updated.id ? { ...s, ...updated } : s))
+                    loadMedia()
+                  }}
+                />
               </div>
 
-              <DialogFooter className="flex-row gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`/uploads/${selected.filename}`).then(() => {
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 1500)
-                    })
-                  }}
-                >
-                  {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                  {copied ? 'Copied!' : 'Copy URL'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={() => handleDelete(selected.id)}
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </Button>
-              </DialogFooter>
+              <div className="flex items-center justify-between px-5 pb-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{formatSize(preview.file_size)}</Badge>
+                  {preview.width && preview.height && (
+                    <Badge variant="secondary">{preview.width} x {preview.height}px</Badge>
+                  )}
+                  <Badge variant="outline">
+                    {new Date(preview.created_at).toLocaleDateString(undefined, {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                    })}
+                  </Badge>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/api/media/${preview.id}/file`).then(() => {
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 1500)
+                      })
+                    }}
+                  >
+                    {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                    {copied ? 'Copied!' : 'Copy URL'}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => { handleDelete(preview.id); setPreview(null) }}
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </Button>
+                </div>
+              </div>
             </>
           )}
         </DialogContent>

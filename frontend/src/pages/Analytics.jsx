@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart3, Eye, Heart, MessageCircle, Share2, RefreshCw,
-  ArrowUpDown, TrendingUp, Users, Zap, Loader2, ArrowUp, ArrowDown
+  ArrowUpDown, TrendingUp, Loader2, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/table'
 
 export default function Analytics() {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -61,7 +63,7 @@ export default function Analytics() {
   const sortedPosts = data?.posts?.slice().sort((a, b) => {
     let aVal = a[sortKey]
     let bVal = b[sortKey]
-    if (sortKey === 'published_at' || sortKey === 'title') {
+    if (sortKey === 'published_at' || sortKey === 'content_snippet') {
       aVal = aVal || ''
       bVal = bVal || ''
       return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
@@ -165,18 +167,6 @@ export default function Analytics() {
         />
       </div>
 
-      {/* Engagement breakdown mini-bar */}
-      {summary.total_engagements > 0 && (
-        <Card className="mb-6">
-          <CardContent>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Engagement Breakdown</span>
-            </div>
-            <EngagementBar data={data} />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Posts table */}
       {sortedPosts.length === 0 ? (
         <Card className="p-16 text-center">
@@ -193,7 +183,7 @@ export default function Analytics() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-5 py-4"><SortHeader label="Title" field="title" /></TableHead>
+                <TableHead className="px-5 py-4"><SortHeader label="Post" field="content_snippet" /></TableHead>
                 <TableHead className="px-5 py-4"><SortHeader label="Published" field="published_at" /></TableHead>
                 <TableHead className="px-5 py-4 text-right"><SortHeader label="Impressions" field="impressions" align="right" /></TableHead>
                 <TableHead className="px-5 py-4 text-right"><SortHeader label="Likes" field="likes" align="right" /></TableHead>
@@ -205,10 +195,11 @@ export default function Analytics() {
               {sortedPosts.map((post, idx) => (
                 <TableRow
                   key={post.post_id}
-                  className={cn(idx % 2 !== 0 && 'bg-muted/30')}
+                  className={cn('cursor-pointer transition-colors hover:bg-white/[0.04]', idx % 2 !== 0 && 'bg-muted/30')}
+                  onClick={() => navigate(`/app/post/${post.post_id}`)}
                 >
-                  <TableCell className="px-5 py-4 font-medium max-w-[220px] truncate">
-                    {post.title || 'Untitled'}
+                  <TableCell className="px-5 py-4 font-medium max-w-[280px] truncate">
+                    {post.content_snippet || post.title || 'Untitled'}
                   </TableCell>
                   <TableCell className="px-5 py-4 text-muted-foreground">
                     {post.published_at
@@ -301,59 +292,5 @@ function SummaryCard({ label, value, icon: Icon, color, detail, format }) {
         {detail && <div className="text-[10px] text-muted-foreground/60 mt-1">{detail}</div>}
       </CardContent>
     </Card>
-  )
-}
-
-function EngagementBar({ data }) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 100)
-    return () => clearTimeout(t)
-  }, [])
-
-  if (!data?.posts?.length) return null
-
-  const totals = data.posts.reduce((acc, p) => ({
-    likes: acc.likes + (p.likes || 0),
-    comments: acc.comments + (p.comments || 0),
-    shares: acc.shares + (p.shares || 0),
-  }), { likes: 0, comments: 0, shares: 0 })
-
-  const total = totals.likes + totals.comments + totals.shares
-  if (total === 0) return null
-
-  const segments = [
-    { label: 'Likes', value: totals.likes, color: 'bg-rose-400', pct: (totals.likes / total * 100).toFixed(1) },
-    { label: 'Comments', value: totals.comments, color: 'bg-purple-400', pct: (totals.comments / total * 100).toFixed(1) },
-    { label: 'Shares', value: totals.shares, color: 'bg-emerald-400', pct: (totals.shares / total * 100).toFixed(1) },
-  ]
-
-  return (
-    <div>
-      {/* Bar */}
-      <div className="flex h-3 rounded-full overflow-hidden bg-muted mb-3">
-        {segments.map(seg => (
-          seg.value > 0 && (
-            <div
-              key={seg.label}
-              className={cn(seg.color, 'transition-all duration-700 ease-out')}
-              style={{ width: mounted ? `${seg.pct}%` : '0%' }}
-            />
-          )
-        ))}
-      </div>
-      {/* Labels */}
-      <div className="flex items-center gap-6">
-        {segments.map(seg => (
-          <div key={seg.label} className="flex items-center gap-2">
-            <span className={cn('w-2.5 h-2.5 rounded-full', seg.color)} />
-            <span className="text-xs text-muted-foreground">{seg.label}</span>
-            <span className="text-xs font-semibold text-foreground">{seg.value.toLocaleString()}</span>
-            <span className="text-[10px] text-muted-foreground/60">({seg.pct}%)</span>
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }

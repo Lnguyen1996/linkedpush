@@ -2,10 +2,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using PostizApi.Data;
-using PostizApi.Models;
+using LinkedPushApi.Data;
+using LinkedPushApi.Models;
 
-namespace PostizApi.Services;
+namespace LinkedPushApi.Services;
 
 public class LinkedInService
 {
@@ -21,7 +21,7 @@ public class LinkedInService
         _httpFactory = httpFactory;
     }
 
-    public async Task<bool> RefreshAccessToken(User user, AppDbContext db)
+    public async Task<bool> RefreshAccessToken(User user, AppDbContext db, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(user.RefreshToken)) return false;
 
@@ -36,10 +36,10 @@ public class LinkedInService
                 ["client_secret"] = _config["LinkedIn:ClientSecret"] ?? "",
             });
 
-            var resp = await client.PostAsync(LinkedInTokenUrl, content);
+            var resp = await client.PostAsync(LinkedInTokenUrl, content, ct);
             if (!resp.IsSuccessStatusCode) return false;
 
-            var json = await resp.Content.ReadAsStringAsync();
+            var json = await resp.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -49,7 +49,7 @@ public class LinkedInService
             var expiresIn = root.TryGetProperty("expires_in", out var ei) ? ei.GetInt32() : 3600;
             user.TokenExpiresAt = DateTime.UtcNow.AddSeconds(expiresIn);
             user.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             return true;
         }
         catch (Exception ex)
@@ -59,7 +59,7 @@ public class LinkedInService
         }
     }
 
-    public async Task<string?> GetValidAccessToken(User user, AppDbContext db)
+    public async Task<string?> GetValidAccessToken(User user, AppDbContext db, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(user.AccessToken)) return null;
         if (user.AccessToken == "dev-token") return "dev-token";
@@ -67,59 +67,19 @@ public class LinkedInService
         if (user.TokenExpiresAt.HasValue &&
             DateTime.UtcNow >= user.TokenExpiresAt.Value.AddMinutes(-5))
         {
-            var success = await RefreshAccessToken(user, db);
+            var success = await RefreshAccessToken(user, db, ct);
             if (!success) return null;
         }
 
         return user.AccessToken;
     }
 
-    public Task<string> GetUserUrn(string accessToken)
-    {
-        // Decode the JWT access token to extract the 'sub' claim (member ID)
-        var parts = accessToken.Split('.');
-        if (parts.Length >= 2)
-        {
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-            var payloadBytes = Convert.FromBase64String(payload);
-            using var doc = System.Text.Json.JsonDocument.Parse(payloadBytes);
-            var sub = doc.RootElement.GetProperty("sub").GetString();
-            return Task.FromResult($"urn:li:person:{sub}");
-        }
-
-        throw new InvalidOperationException("Unable to extract user ID from access token");
-    }
-
-    public async Task<string> PublishTextPost(string accessToken, string authorUrn, string text)
+    public async Task<string> PublishTextPost(string accessToken, string authorUrn, string text, CancellationToken ct = default)
     {
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
 
-        var payload = new
-        {
-            author = authorUrn,
-            lifecycleState = "PUBLISHED",
-            specificContent = new
-            {
-                ShareContent = new
-                {
-                    shareCommentary = new { text },
-                    shareMediaCategory = "NONE"
-                }
-            },
-            visibility = new
-            {
-                MemberNetworkVisibility = "PUBLIC"
-            }
-        };
-
-        // Build JSON manually for exact LinkedIn API field names
         var jsonPayload = JsonSerializer.Serialize(new Dictionary<string, object>
         {
             ["author"] = authorUrn,
@@ -139,14 +99,14 @@ public class LinkedInService
         });
 
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content);
+        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
         resp.EnsureSuccessStatusCode();
-        var respJson = await resp.Content.ReadAsStringAsync();
+        var respJson = await resp.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(respJson);
         return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
     }
 
-    public async Task<string> UploadImage(string accessToken, string authorUrn, string imagePath)
+    public async Task<string> UploadImage(string accessToken, string authorUrn, byte[] imageData, CancellationToken ct = default)
     {
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -170,9 +130,9 @@ public class LinkedInService
         });
 
         var registerContent = new StringContent(registerPayload, Encoding.UTF8, "application/json");
-        var registerResp = await client.PostAsync($"{LinkedInApiBase}/assets?action=registerUpload", registerContent);
+        var registerResp = await client.PostAsync($"{LinkedInApiBase}/assets?action=registerUpload", registerContent, ct);
         registerResp.EnsureSuccessStatusCode();
-        var registerJson = await registerResp.Content.ReadAsStringAsync();
+        var registerJson = await registerResp.Content.ReadAsStringAsync(ct);
         using var registerDoc = JsonDocument.Parse(registerJson);
         var value = registerDoc.RootElement.GetProperty("value");
         var uploadUrl = value.GetProperty("uploadMechanism")
@@ -181,20 +141,19 @@ public class LinkedInService
         var asset = value.GetProperty("asset").GetString()!;
 
         // Upload binary
-        var imageData = await File.ReadAllBytesAsync(imagePath);
         var uploadClient = _httpFactory.CreateClient();
         uploadClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var byteContent = new ByteArrayContent(imageData);
         byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        var uploadResp = await uploadClient.PutAsync(uploadUrl, byteContent);
+        var uploadResp = await uploadClient.PutAsync(uploadUrl, byteContent, ct);
         uploadResp.EnsureSuccessStatusCode();
 
         return asset;
     }
 
-    public async Task<string> PublishImagePost(string accessToken, string authorUrn, string text, string imagePath)
+    public async Task<string> PublishImagePost(string accessToken, string authorUrn, string text, byte[] imageData, CancellationToken ct = default)
     {
-        var asset = await UploadImage(accessToken, authorUrn, imagePath);
+        var asset = await UploadImage(accessToken, authorUrn, imageData, ct);
 
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -227,14 +186,14 @@ public class LinkedInService
         });
 
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content);
+        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
         resp.EnsureSuccessStatusCode();
-        var respJson = await resp.Content.ReadAsStringAsync();
+        var respJson = await resp.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(respJson);
         return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
     }
 
-    public async Task<string> PostComment(string accessToken, string postUrn, string authorUrn, string text)
+    public async Task<string> PostComment(string accessToken, string postUrn, string authorUrn, string text, CancellationToken ct = default)
     {
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -247,9 +206,9 @@ public class LinkedInService
         });
 
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync($"{LinkedInApiBase}/socialActions/{Uri.EscapeDataString(postUrn)}/comments", content);
+        var resp = await client.PostAsync($"{LinkedInApiBase}/socialActions/{Uri.EscapeDataString(postUrn)}/comments", content, ct);
         resp.EnsureSuccessStatusCode();
-        var json = await resp.Content.ReadAsStringAsync();
+        var json = await resp.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
     }
@@ -264,24 +223,31 @@ public class LinkedInService
         return text.Trim();
     }
 
-    public async Task<bool> PublishPost(Post post, User user, AppDbContext db)
+    public async Task<bool> PublishPost(Post post, User user, AppDbContext db, CancellationToken ct = default)
     {
         try
         {
             post.Status = "publishing";
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
 
             // Ensure token is valid before publishing
-            var accessToken = await GetValidAccessToken(user, db) ?? user.AccessToken!;
+            var accessToken = await GetValidAccessToken(user, db, ct);
+            if (accessToken == null)
+            {
+                post.Status = "failed";
+                post.ErrorMessage = "LinkedIn access token is missing or refresh failed. Please re-authenticate.";
+                await db.SaveChangesAsync(ct);
+                return false;
+            }
 
             var authorUrn = $"urn:li:person:{user.LinkedInId}";
             var plainText = StripHtml(post.Content);
 
             string postUrn;
-            if (post.Image != null && File.Exists(post.Image.FilePath))
-                postUrn = await PublishImagePost(accessToken, authorUrn, plainText, post.Image.FilePath);
+            if (post.Image != null && post.Image.Data.Length > 0)
+                postUrn = await PublishImagePost(accessToken, authorUrn, plainText, post.Image.Data, ct);
             else
-                postUrn = await PublishTextPost(accessToken, authorUrn, plainText);
+                postUrn = await PublishTextPost(accessToken, authorUrn, plainText, ct);
 
             post.LinkedInPostUrn = postUrn;
             post.LinkedInPostId = postUrn;
@@ -293,7 +259,7 @@ public class LinkedInService
             {
                 try
                 {
-                    var commentId = await PostComment(accessToken, postUrn, authorUrn, post.FirstComment.Content);
+                    var commentId = await PostComment(accessToken, postUrn, authorUrn, post.FirstComment.Content, ct);
                     post.FirstComment.LinkedInCommentId = commentId;
                     post.FirstComment.Posted = 1;
                 }
@@ -303,7 +269,7 @@ public class LinkedInService
                 }
             }
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             return true;
         }
         catch (HttpRequestException ex)
@@ -316,21 +282,21 @@ public class LinkedInService
                 post.ErrorMessage = "LinkedIn access token expired. Please re-authenticate.";
             else
                 post.ErrorMessage = $"LinkedIn API error ({statusCode}): {ex.Message[..Math.Min(ex.Message.Length, 500)]}";
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             return false;
         }
         catch (Exception ex)
         {
             post.Status = "failed";
             post.ErrorMessage = $"Publishing failed: {ex.Message[..Math.Min(ex.Message.Length, 500)]}";
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             return false;
         }
     }
 
-    public async Task<Dictionary<string, int>> FetchLinkedInAnalytics(Post post, User user, AppDbContext db)
+    public async Task<Dictionary<string, int>> FetchLinkedInAnalytics(Post post, User user, AppDbContext db, CancellationToken ct = default)
     {
-        var accessToken = await GetValidAccessToken(user, db);
+        var accessToken = await GetValidAccessToken(user, db, ct);
 
         if (string.IsNullOrEmpty(accessToken) || accessToken == "dev-token")
         {
@@ -346,16 +312,16 @@ public class LinkedInService
 
         int likes = 0, comments = 0, shares = 0, impressions = 0;
 
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
         try
         {
-            var client = _httpFactory.CreateClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
-
-            var resp = await client.GetAsync($"{LinkedInApiBase}/socialActions/{post.LinkedInPostUrn}");
+            var resp = await client.GetAsync($"{LinkedInApiBase}/socialActions/{Uri.EscapeDataString(post.LinkedInPostUrn!)}", ct);
             if (resp.IsSuccessStatusCode)
             {
-                var json = await resp.Content.ReadAsStringAsync();
+                var json = await resp.Content.ReadAsStringAsync(ct);
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("likesSummary", out var ls) && ls.TryGetProperty("totalLikes", out var tl))
@@ -374,14 +340,10 @@ public class LinkedInService
             var shareUrn = post.LinkedInPostUrn ?? post.LinkedInPostId;
             if (!string.IsNullOrEmpty(shareUrn))
             {
-                var client = _httpFactory.CreateClient();
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
-
-                var resp = await client.GetAsync($"{LinkedInApiBase}/shares/{shareUrn}/statistics");
+                var resp = await client.GetAsync($"{LinkedInApiBase}/socialActions/{Uri.EscapeDataString(shareUrn)}/statistics", ct);
                 if (resp.IsSuccessStatusCode)
                 {
-                    var json = await resp.Content.ReadAsStringAsync();
+                    var json = await resp.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(json);
                     var root = doc.RootElement;
                     if (root.TryGetProperty("totalShareStatistics", out var tss))

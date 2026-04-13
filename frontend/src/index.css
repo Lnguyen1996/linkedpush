@@ -27,49 +27,49 @@
   --color-discord-success: #23a55a;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  --color-postiz-bg: #0a0a0a;
-  --color-postiz-panel: #111111;
-  --color-postiz-elevated: #171717;
-  --color-postiz-border: rgba(255, 255, 255, 0.1);
-  --color-postiz-text: #f4f7fb;
-  --color-postiz-muted: rgba(240, 245, 255, 0.58);
+  --color-lp-bg: #0a0a0a;
+  --color-lp-panel: #111111;
+  --color-lp-elevated: #171717;
+  --color-lp-border: rgba(255, 255, 255, 0.1);
+  --color-lp-text: #f4f7fb;
+  --color-lp-muted: rgba(240, 245, 255, 0.58);
 }
 
-.postiz-shell {
+.lp-shell {
   background:
     radial-gradient(1200px 500px at 80% -10%, rgba(124, 58, 237, 0.15), transparent 55%),
     radial-gradient(1000px 500px at -10% 20%, rgba(124, 58, 237, 0.10), transparent 50%),
-    var(--color-postiz-bg);
-  color: var(--color-postiz-text);
+    var(--color-lp-bg);
+  color: var(--color-lp-text);
 }
 
-.postiz-panel {
-  background: color-mix(in oklab, var(--color-postiz-panel) 92%, black);
-  border: 1px solid var(--color-postiz-border);
+.lp-panel {
+  background: color-mix(in oklab, var(--color-lp-panel) 92%, black);
+  border: 1px solid var(--color-lp-border);
 }
 
-.postiz-card {
-  background: color-mix(in oklab, var(--color-postiz-elevated) 94%, black);
-  border: 1px solid var(--color-postiz-border);
+.lp-card {
+  background: color-mix(in oklab, var(--color-lp-elevated) 94%, black);
+  border: 1px solid var(--color-lp-border);
 }
 
-/* Emphasis helpers for Postiz-inspired shell */
-.postiz-heading-strong {
+/* Emphasis helpers for LinkedPush shell */
+.lp-heading-strong {
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
-.postiz-label-strong {
+.lp-label-strong {
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
-.postiz-icon-lg {
+.lp-icon-lg {
   width: 20px;
   height: 20px;
 }
 
-.postiz-icon-xl {
+.lp-icon-xl {
   width: 22px;
   height: 22px;
 }

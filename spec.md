@@ -1,35 +1,34 @@
-# Postiz — Self-Hosted LinkedIn Post Scheduler
+# LinkedPush — Self-Hosted LinkedIn Post Scheduler
 
 ## Overview
-Postiz is a self-hosted LinkedIn post scheduler that lets professionals compose, schedule, and auto-publish LinkedIn posts with timezone awareness. It includes an image library, first-comment support, post analytics, and AI-assisted caption writing via the Claude API. Designed for solo operators and small teams who want full control over their LinkedIn publishing workflow without SaaS subscriptions.
+LinkedPush is a self-hosted LinkedIn post scheduler that lets professionals compose, schedule, and auto-publish LinkedIn posts with timezone awareness. It includes an image library, first-comment support, post analytics, and AI-assisted caption writing via the Claude API. Designed for solo operators and small teams who want full control over their LinkedIn publishing workflow without SaaS subscriptions.
 
 ## Tech Stack
-- Frontend: React 18 + Vite + Tailwind CSS 3
-- Backend: FastAPI + SQLite (with SQLAlchemy ORM)
-- Testing: Vitest (frontend) + pytest (backend)
-- Rich Text Editor: TipTap (ProseMirror-based)
+- Frontend: React 19 + Vite 8 + Tailwind CSS 4
+- Backend: ASP.NET Core (.NET 10) + PostgreSQL (EF Core)
+- Rich Text Editor: TipTap v3 (ProseMirror-based)
 - Calendar: FullCalendar React wrapper
-- Image handling: Pillow (backend resize/thumbnails)
-- Scheduling: APScheduler (in-process cron)
-- AI: Anthropic Claude API (claude-sonnet-4-5-20250514)
-- Auth: LinkedIn OAuth2 (OpenID Connect)
+- Image handling: SixLabors.ImageSharp (backend)
+- Scheduling: BackgroundService (in-process, 60s polling)
+- AI: Claude API (direct HTTP to api.anthropic.com)
+- Auth: LinkedIn OAuth2 (OpenID Connect) + HMAC-SHA256 sessions
 
 ## Architecture
 - SPA frontend served by Vite dev server (port 5173)
-- FastAPI REST API backend (port 8000)
-- Vite proxies /api/* to FastAPI
-- SQLite database at ./data/postiz.db
+- ASP.NET Core REST API backend (port 8000)
+- Vite proxies /api/* to .NET backend
+- PostgreSQL database (linkedpush_dev)
 - Uploaded images stored in ./data/uploads/
-- APScheduler runs inside the FastAPI process, polling scheduled posts every 60 seconds
+- BackgroundService runs inside the .NET process, polling scheduled posts every 60 seconds
 - LinkedIn API v2 for publishing and analytics
 
 ## Features
 
 ### Feature 1: Project Scaffolding and Base Layout
-**Description:** Initialize the monorepo with frontend (React+Vite+Tailwind) and backend (FastAPI+SQLite). Create the app shell with sidebar navigation, top bar, and main content area. Set up Vite proxy to backend.
+**Description:** Initialize the monorepo with frontend (React+Vite+Tailwind) and backend (ASP.NET Core+PostgreSQL). Create the app shell with sidebar navigation, top bar, and main content area. Set up Vite proxy to backend.
 **Acceptance Criteria:**
 - [ ] Running `npm run dev` in /frontend starts Vite on port 5173
-- [ ] Running `uvicorn` in /backend starts FastAPI on port 8000
+- [ ] Running `dotnet run` in /backend starts ASP.NET Core on port 8000
 - [ ] GET /api/health returns {"status": "ok"} and is accessible from the frontend via Vite proxy
 - [ ] App shell renders with a left sidebar containing navigation links (Dashboard, Compose, Calendar, Media, Analytics)
 - [ ] Clicking sidebar links changes the main content area (client-side routing)
@@ -37,7 +36,7 @@ Postiz is a self-hosted LinkedIn post scheduler that lets professionals compose,
 **Dependencies:** none
 
 ### Feature 2: Database Models and API Foundation
-**Description:** Create SQLAlchemy models for Users, Posts, Comments (first-comment), Media, and Analytics. Build CRUD API endpoints for posts with pagination, filtering by status (draft/scheduled/published/failed).
+**Description:** Create EF Core models for Users, Posts, Comments (first-comment), Media, and Analytics. Build CRUD API endpoints for posts with pagination, filtering by status (draft/scheduled/published/failed).
 **Acceptance Criteria:**
 - [ ] POST /api/posts creates a post with title, content, scheduled_at, timezone, status fields and returns 201
 - [ ] GET /api/posts returns paginated list with ?page=1&per_page=10&status=draft query params
@@ -92,11 +91,11 @@ Postiz is a self-hosted LinkedIn post scheduler that lets professionals compose,
 **Dependencies:** Feature 2, Feature 4
 
 ### Feature 7: Timezone-Aware Scheduling Engine
-**Description:** Implement an APScheduler-based engine that polls for posts due to be published. Scheduling respects the user's timezone. The engine runs inside the FastAPI process and checks every 60 seconds for posts whose scheduled_at has passed.
+**Description:** Implement a BackgroundService-based engine that polls for posts due to be published. Scheduling respects the user's timezone. The engine runs inside the ASP.NET Core process and checks every 60 seconds for posts whose scheduled_at has passed.
 **Acceptance Criteria:**
 - [ ] User can select a timezone from a dropdown when scheduling a post
 - [ ] Scheduled times are stored in UTC and displayed in the user's timezone
-- [ ] APScheduler job runs every 60 seconds checking for due posts
+- [ ] BackgroundService job runs every 60 seconds checking for due posts
 - [ ] When a post is due, its status changes from "scheduled" to "publishing"
 - [ ] If publishing succeeds, status changes to "published" with linkedin_post_id stored
 - [ ] If publishing fails, status changes to "failed" with error message stored

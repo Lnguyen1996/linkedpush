@@ -14,7 +14,7 @@ export default function AuthCallback() {
     if (code) {
       fetch(`/api/auth/callback?code=${code}`, { credentials: 'include', redirect: 'follow' })
         .then(() => fetchUser())
-        .then(() => navigate('/'))
+        .then(() => navigate('/app'))
         .catch(() => navigate('/login'))
     } else {
       navigate('/login')

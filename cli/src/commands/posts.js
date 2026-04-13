@@ -29,9 +29,22 @@ export function registerPosts(program) {
     .option('-s, --schedule <date>', 'Schedule date (ISO 8601)')
     .option('--publish', 'Publish immediately after creating')
     .option('-i, --image-id <imageId>', 'Attach media by ID')
+    .option('-l, --link <url>', 'Append a link to the post content')
+    .option('--first-comment <text>', 'Add a first comment (e.g. link in comments)')
     .action(async (opts) => {
-      const body = { content: opts.content }
+      let content = opts.content
+      if (opts.link) content += `\n\n${opts.link}`
+      // Convert plain text to HTML paragraphs for TipTap editor rendering.
+      // Backend StripHtml() converts back to plain text before LinkedIn publish.
+      if (!content.includes('<p>') && !content.includes('<br')) {
+        content = content
+          .split(/\n\n+/)
+          .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+          .join('')
+      }
+      const body = { content }
       if (opts.title) body.title = opts.title
+      if (opts.firstComment) body.first_comment = opts.firstComment
       if (opts.schedule) {
         body.scheduled_at = opts.schedule
         body.status = 'scheduled'

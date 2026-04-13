@@ -46,6 +46,7 @@ export function AuthProvider({ children }) {
       // ignore
     }
     setUser(null)
+    window.location.href = '/login'
   }
 
   return (

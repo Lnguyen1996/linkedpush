@@ -1,0 +1,61 @@
+# .deploy/config.yaml — LinkedPush Deployment Config
+# Read by the Hostinger VPS deployment agent over SSH.
+
+name: linkedpush
+domain: linkedpush.seonavigatorplus.com
+
+deployment:
+  type: bare-metal
+  git_branch: main
+
+backend:
+  type: aspnet
+  path: backend
+  port: 8000
+  service: linkedpush-backend
+  build_cmd: dotnet publish -c Release -o /opt/linkedpush/backend/publish
+  run_cmd: /opt/linkedpush/backend/publish/LinkedPushApi
+  env_file: backend/appsettings.json
+
+frontend:
+  type: vite-static
+  path: frontend
+  port: 5173
+  build_cmd: npm ci && npm run build
+  serve_from: frontend/dist
+  # In production, nginx serves the built static files directly
+
+database:
+  type: postgresql
+  host: localhost
+  port: 5432
+  db_name: linkedpush_prod
+  db_user: linkedpush
+  backup_dir: /opt/linkedpush/backups
+  backup_retention_days: 7
+
+health_check:
+  url: "https://linkedpush.seonavigatorplus.com/api/health"
+  timeout: 10
+
+uploads:
+  path: data/uploads
+  max_size: 5MB
+
+systemd_service: |
+  [Unit]
+  Description=LinkedPush API (.NET)
+  After=network.target postgresql.service
+
+  [Service]
+  WorkingDirectory=/opt/linkedpush/backend/publish
+  ExecStart=/usr/bin/dotnet /opt/linkedpush/backend/publish/LinkedPushApi.dll
+  Restart=always
+  RestartSec=5
+  Environment=ASPNETCORE_ENVIRONMENT=Production
+  Environment=DOTNET_ROOT=/usr/share/dotnet
+  User=www-data
+  Group=www-data
+
+  [Install]
+  WantedBy=multi-user.target

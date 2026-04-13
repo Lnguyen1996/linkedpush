@@ -1,41 +1,42 @@
-# Postiz — Self-Hosted LinkedIn Post Scheduler
+# LinkedPush — Self-Hosted LinkedIn Post Scheduler
 
 A self-hosted LinkedIn post scheduling tool with rich text editing, image uploads, calendar view, timezone-aware auto-publishing, post analytics, and AI-assisted caption writing.
 
 ## Tech Stack
 
-- **Frontend:** React 18 + Vite + Tailwind CSS 3
-- **Backend:** FastAPI + SQLite (SQLAlchemy ORM)
-- **Editor:** TipTap (ProseMirror-based)
-- **Scheduling:** APScheduler (in-process, 60s polling)
-- **AI:** Claude API (Anthropic) for caption generation
-- **Auth:** LinkedIn OAuth2 (with dev mode bypass)
+- **Frontend:** React 19 + Vite 8 + Tailwind CSS 4
+- **Backend:** ASP.NET Core (.NET 10) + PostgreSQL (EF Core)
+- **Editor:** TipTap v3 (ProseMirror-based)
+- **Scheduling:** BackgroundService (in-process, 60s polling)
+- **AI:** Claude API (direct HTTP) for caption generation
+- **Auth:** LinkedIn OAuth2 with HMAC-SHA256 session cookies
 
 ## Quick Start
 
 ### Prerequisites
 
+- .NET 10 SDK
 - Node.js 18+
-- Python 3.13 (or 3.11+)
+- PostgreSQL running locally
 
-### 1. Backend Setup
+### 1. Database Setup
+
+```bash
+createdb linkedpush_dev
+```
+
+### 2. Backend Setup
 
 ```bash
 cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your LinkedIn OAuth credentials and Anthropic API key
-# Or leave defaults for dev mode (simulated LinkedIn + template AI responses)
-
-# Start backend
-uvicorn main:app --reload --port 8000
+dotnet run
 ```
 
-### 2. Frontend Setup
+The backend starts on **http://localhost:8000** (configured in `appsettings.json`).
+
+In dev mode (default `DevMode: true`), no LinkedIn credentials are needed — clicking "Sign in with LinkedIn" auto-creates a dev user.
+
+### 3. Frontend Setup
 
 ```bash
 cd frontend
@@ -43,31 +44,24 @@ npm install
 npm run dev
 ```
 
-### 3. Open the App
+### 4. Open the App
 
 Visit **http://localhost:5173**
 
-In dev mode (default), click "Sign in with LinkedIn" to auto-create a dev user session.
-
 ## Configuration
 
-Create `backend/.env` with:
+Edit `backend/appsettings.json`:
 
-```env
-# LinkedIn OAuth2 (get from https://www.linkedin.com/developers/)
-LINKEDIN_CLIENT_ID=your_client_id
-LINKEDIN_CLIENT_SECRET=your_client_secret
-LINKEDIN_REDIRECT_URI=http://localhost:5173/auth/callback
-
-# Claude API for AI caption generation
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# Session security
-SECRET_KEY=change-this-to-a-random-secret-key
-
-# Set to false in production
-DEV_MODE=true
-```
+| Key | Required | Default | Description |
+|-----|----------|---------|-------------|
+| `ConnectionStrings:DefaultConnection` | Yes | `Host=localhost;...` | PostgreSQL connection string |
+| `SecretKey` | Yes (prod) | `dev-secret-key-...` | HMAC session signing key |
+| `LinkedIn:ClientId` | For prod | `""` | LinkedIn OAuth app ID |
+| `LinkedIn:ClientSecret` | For prod | `""` | LinkedIn OAuth app secret |
+| `LinkedIn:RedirectUri` | No | `http://localhost:8000/api/auth/callback` | OAuth redirect URI |
+| `AnthropicApiKey` | For AI | `""` | Claude API key for captions |
+| `DevMode` | No | `true` | Enable dev login bypass |
+| `Kestrel:Endpoints:Http:Url` | No | `http://localhost:8000` | Server listen URL |
 
 ## Features
 
@@ -78,53 +72,48 @@ DEV_MODE=true
 | **Image Upload** | Attach images (JPEG/PNG/GIF, max 5MB) from upload or media library. |
 | **Media Library** | Grid view of all uploaded images with metadata and preview. |
 | **Calendar View** | Month/week calendar showing posts color-coded by status. |
-| **Scheduling** | Timezone-aware scheduling with APScheduler auto-publishing every 60s. |
+| **Scheduling** | Timezone-aware scheduling with BackgroundService auto-publishing every 60s. |
 | **LinkedIn Publishing** | LinkedIn API v2 integration for text and image posts. |
 | **Analytics** | Summary cards + sortable table with impressions, likes, comments, shares. |
 | **AI Assist** | Claude-powered caption generator with professional/casual/storytelling tones. |
 | **Responsive** | Full mobile support with collapsible sidebar. |
 
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + Enter` | Save draft in composer |
-
 ## Project Structure
 
 ```
-postiz-clone/
+linkedpush/
   backend/
-    main.py              # FastAPI app entry point
-    database.py          # SQLAlchemy setup
-    models.py            # ORM models (User, Post, Comment, Media, Analytics)
-    schemas.py           # Pydantic schemas
-    config.py            # Environment config
-    routers/
-      auth.py            # LinkedIn OAuth2 + session management
-      posts.py           # Post CRUD API
-      media.py           # Image upload/library API
-      publish.py         # LinkedIn publishing API
-      analytics.py       # Post analytics API
-      ai.py              # AI caption generation API
-    services/
-      linkedin.py        # LinkedIn API v2 client
-      scheduler.py       # APScheduler background job
+    Program.cs                # App startup: DI, middleware, CORS, static files
+    appsettings.json          # Configuration
+    Controllers/
+      AuthController.cs       # LinkedIn OAuth2 + session management
+      PostsController.cs      # Post CRUD + publish-now
+      MediaController.cs      # Image upload/library
+      AnalyticsController.cs  # Post analytics
+      AiController.cs         # AI caption generation
+    Data/
+      AppDbContext.cs          # EF Core DbContext
+    Models/                   # EF Core entities
+    DTOs/                     # Request/response DTOs
+    Services/
+      SessionService.cs       # HMAC-SHA256 session tokens
+      LinkedInService.cs      # LinkedIn API v2 client
+      SchedulerService.cs     # BackgroundService scheduler
   frontend/
     src/
-      App.jsx            # Routes and providers
+      App.jsx                 # Routes and providers
       components/
-        Layout.jsx       # App shell with sidebar
-        TipTapEditor.jsx # Rich text editor
-        Toast.jsx        # Toast notifications
+        Layout.jsx            # App shell with sidebar
+        TipTapEditor.jsx      # Rich text editor
+        Toast.jsx             # Toast notifications
       context/
-        AuthContext.jsx   # Auth state management
+        AuthContext.jsx        # Auth state management
       pages/
-        Dashboard.jsx    # Post list with status filtering
-        Compose.jsx      # Post composer
-        Calendar.jsx     # Calendar view
-        MediaLibrary.jsx # Image grid
-        Analytics.jsx    # Analytics dashboard
-        Login.jsx        # Login page
-        AuthCallback.jsx # OAuth callback handler
+        Dashboard.jsx         # Post list with status filtering
+        Compose.jsx           # Post composer
+        Calendar.jsx          # Calendar view
+        MediaLibrary.jsx      # Image grid
+        Analytics.jsx         # Analytics dashboard
+        Login.jsx             # Login page
+        AuthCallback.jsx      # OAuth callback handler
 ```

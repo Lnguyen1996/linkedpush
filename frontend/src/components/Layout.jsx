@@ -3,21 +3,16 @@ import { Outlet, NavLink, Navigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   PenSquare,
-
   Image,
   BarChart3,
   Menu,
   LogOut,
   Plus,
-  Bell,
   ChevronRight,
-  Sun,
-  Moon,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { useTheme } from '@/context/ThemeContext'
 import AppLogo from '@/components/AppLogo'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -37,12 +32,13 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import NotificationBell from '@/components/NotificationBell'
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/compose', icon: PenSquare, label: 'Compose', end: false },
-  { to: '/media', icon: Image, label: 'Media', end: false },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics', end: false },
+  { to: '/app', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/app/compose', icon: PenSquare, label: 'Compose', end: false },
+  { to: '/app/media', icon: Image, label: 'Media', end: false },
+  { to: '/app/analytics', icon: BarChart3, label: 'Analytics', end: false },
 ]
 
 function SidebarNav({ scheduledCount, onNavClick, currentPath }) {
@@ -115,7 +111,7 @@ function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, cu
     <div className="flex flex-col h-full">
       {/* Logo area */}
       <div className="flex items-center gap-2 px-5 sm:px-6 h-[70px] min-h-[70px] border-b border-white/10 shrink-0">
-        <AppLogo variant="shellDark" />
+        <AppLogo variant="shellDark" homePath="/app" />
       </div>
 
       {/* Quick action */}
@@ -124,7 +120,7 @@ function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, cu
           asChild
           className="w-full gap-2 rounded-xl bg-gradient-to-r from-purple to-[#A855F7] text-white hover:from-purple-dark hover:to-purple hover:shadow-md hover:shadow-purple/25 active:scale-[0.98] transition-all duration-200"
         >
-          <NavLink to="/compose" onClick={onNavClick}>
+          <NavLink to="/app/compose" onClick={onNavClick}>
             <Plus size={18} strokeWidth={2.6} />
             New Post
           </NavLink>
@@ -209,26 +205,10 @@ function IconRailContent({ user, initials, scheduledCount, logout, currentPath, 
     <div className="flex flex-col items-center h-full py-3">
       {/* Logo icon */}
       <div className="flex items-center justify-center h-12 mb-2">
-        <NavLink to="/" className="flex items-center justify-center w-9 h-9">
+        <NavLink to="/app" className="flex items-center justify-center w-9 h-9">
           <AppLogo variant="iconOnly" />
         </NavLink>
       </div>
-
-      {/* New Post button */}
-      <Tooltip delayDuration={200}>
-        <TooltipTrigger asChild>
-          <Button
-            asChild
-            size="icon"
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple to-[#A855F7] text-white hover:from-purple-dark hover:to-purple hover:shadow-md hover:shadow-purple/25 active:scale-95 transition-all mb-2"
-          >
-            <NavLink to="/compose">
-              <Plus size={20} strokeWidth={2.6} />
-            </NavLink>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={12}>New Post</TooltipContent>
-      </Tooltip>
 
       <Separator className="w-6 bg-white/10 my-1" />
 
@@ -295,7 +275,6 @@ export default function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [scheduledCount, setScheduledCount] = useState(0)
   const { user, loading, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme()
   const location = useLocation()
 
   useEffect(() => {
@@ -342,7 +321,7 @@ export default function Layout() {
 
   return (
     <TooltipProvider>
-      <div className="postiz-shell flex h-screen">
+      <div className="lp-shell flex h-screen">
         {/* Desktop sidebar — collapsed icon rail or expanded */}
         <aside
           className={cn(
@@ -420,7 +399,7 @@ export default function Layout() {
                 {currentPage && (
                   <>
                     <currentPage.icon size={20} className="text-purple" />
-                    <h1 className="postiz-heading-strong text-[17px] text-white">
+                    <h1 className="lp-heading-strong text-[17px] text-white">
                       {currentPage.label}
                     </h1>
                   </>
@@ -428,24 +407,7 @@ export default function Layout() {
               </div>
 
               <div className="ml-auto flex items-center gap-1">
-                {/* Theme toggle */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className="h-10 w-10 text-white/65 hover:text-white hover:bg-white/[0.06]"
-                >
-                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </Button>
-                {/* Notifications */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative h-10 w-10 text-white/65 hover:text-white hover:bg-white/[0.06]"
-                >
-                  <Bell size={20} />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-purple rounded-full ring-2 ring-[#111111]" />
-                </Button>
+                <NotificationBell />
                 {/* Mobile user avatar */}
                 <div className="lg:hidden ml-1">
                   <Avatar>
@@ -461,8 +423,13 @@ export default function Layout() {
             </header>
 
             {/* Page content */}
-            <main className="flex-1 overflow-auto bg-[#0a0a0a]">
-              <div className="p-4 lg:p-8 max-w-7xl mx-auto animate-fade-in-up">
+            <main className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#0a0a0a]">
+              <div
+                className={cn(
+                  'animate-fade-in-up flex min-h-0 w-full min-w-0 flex-1 flex-col',
+                  'p-4 lg:p-5'
+                )}
+              >
                 <Outlet />
               </div>
             </main>

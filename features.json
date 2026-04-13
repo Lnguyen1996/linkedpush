@@ -1,5 +1,5 @@
 {
-  "project": "Postiz — Self-Hosted LinkedIn Post Scheduler",
+  "project": "LinkedPush — Self-Hosted LinkedIn Post Scheduler",
   "total_features": 11,
   "completed": 11,
   "failed": 0,
@@ -8,10 +8,10 @@
     {
       "id": 1,
       "name": "Project Scaffolding and Base Layout",
-      "description": "Initialize the monorepo with frontend (React+Vite+Tailwind) and backend (FastAPI+SQLite). Create the app shell with sidebar navigation, top bar, and main content area. Set up Vite proxy to backend.",
+      "description": "Initialize the monorepo with frontend (React+Vite+Tailwind) and backend (ASP.NET Core+PostgreSQL). Create the app shell with sidebar navigation, top bar, and main content area. Set up Vite proxy to backend.",
       "acceptance_criteria": [
         "Running npm run dev in /frontend starts Vite on port 5173",
-        "Running uvicorn in /backend starts FastAPI on port 8000",
+        "Running dotnet run in /backend starts ASP.NET Core on port 8000",
         "GET /api/health returns {\"status\": \"ok\"} and is accessible from the frontend via Vite proxy",
         "App shell renders with a left sidebar containing navigation links (Dashboard, Compose, Calendar, Media, Analytics)",
         "Clicking sidebar links changes the main content area (client-side routing)",
@@ -22,14 +22,14 @@
       "sprint_contract": {
         "deliverables": [
           "Frontend project with React+Vite+Tailwind configured",
-          "Backend project with FastAPI+SQLite configured",
+          "Backend project with ASP.NET Core+PostgreSQL configured",
           "App shell with sidebar navigation and routing",
           "Vite proxy to backend API",
           "Responsive layout with collapsible sidebar"
         ],
         "success_criteria": [
           "npm run dev in /frontend starts Vite on port 5173",
-          "uvicorn in /backend starts FastAPI on port 8000",
+          "dotnet run in /backend starts ASP.NET Core on port 8000",
           "GET /api/health returns {\"status\": \"ok\"} via Vite proxy",
           "Sidebar shows Dashboard, Compose, Calendar, Media, Analytics links",
           "Clicking sidebar links changes main content area via React Router",
@@ -53,7 +53,7 @@
     {
       "id": 2,
       "name": "Database Models and API Foundation",
-      "description": "Create SQLAlchemy models for Users, Posts, Comments, Media, and Analytics. Build CRUD API endpoints for posts with pagination and status filtering.",
+      "description": "Create EF Core models for Users, Posts, Comments, Media, and Analytics. Build CRUD API endpoints for posts with pagination and status filtering.",
       "acceptance_criteria": [
         "POST /api/posts creates a post with title, content, scheduled_at, timezone, status fields and returns 201",
         "GET /api/posts returns paginated list with ?page=1&per_page=10&status=draft query params",
@@ -66,7 +66,7 @@
       "status": "passed",
       "sprint_contract": {
         "deliverables": [
-          "SQLAlchemy models for users, posts, comments, media, analytics",
+          "EF Core models for users, posts, comments, media, analytics",
           "Database initialization and session management",
           "Full CRUD API for posts with pagination and filtering"
         ],
@@ -167,11 +167,11 @@
     {
       "id": 7,
       "name": "Timezone-Aware Scheduling Engine",
-      "description": "APScheduler-based engine that polls for due posts and publishes them, with timezone-aware scheduling.",
+      "description": "BackgroundService-based engine that polls for due posts and publishes them, with timezone-aware scheduling.",
       "acceptance_criteria": [
         "User can select a timezone from a dropdown when scheduling a post",
         "Scheduled times are stored in UTC and displayed in the user's timezone",
-        "APScheduler job runs every 60 seconds checking for due posts",
+        "BackgroundService job runs every 60 seconds checking for due posts",
         "When a post is due, its status changes from scheduled to publishing",
         "If publishing succeeds, status changes to published with linkedin_post_id stored",
         "If publishing fails, status changes to failed with error message stored"

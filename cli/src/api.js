@@ -1,4 +1,4 @@
-const BASE_URL = process.env.LINKEDPUSH_URL || 'http://localhost:8000'
+const BASE_URL = process.env.LINKEDPUSH_URL || 'https://linkedpush.seonavigatorplus.com'
 const SESSION = process.env.LINKEDPUSH_SESSION || ''
 
 function headers(extra = {}) {
@@ -91,8 +91,12 @@ export async function upload(path, filePath) {
   return res.json()
 }
 
-export async function login() {
-  const res = await fetch(new URL('/api/auth/login', BASE_URL))
+export async function login(params = {}) {
+  const url = new URL('/api/auth/login', BASE_URL)
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) url.searchParams.set(k, v)
+  }
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status}: Login failed`)
   return res.json()
 }

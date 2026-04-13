@@ -75,6 +75,17 @@ export default function Compose() {
         const post = await res.json()
         setTitle(post.title || '')
         setContent(post.content || '')
+        const raw = post.content || ''
+        if (raw.includes('<p>') || raw.includes('<br')) {
+          const stripped = raw
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>\s*<p>/gi, '\n\n')
+            .replace(/<[^>]+>/g, '')
+            .trim()
+          setPlainText(stripped)
+        } else {
+          setPlainText(raw)
+        }
         setPostStatus(post.status || 'draft')
         if (post.first_comment) {
           setFirstComment(post.first_comment)
@@ -114,7 +125,7 @@ export default function Compose() {
       if (res.ok) {
         const media = await res.json()
         setImageId(media.id)
-        setImageUrl(`/uploads/${media.filename}`)
+        setImageUrl(media.url)
         addToast('Image uploaded')
       }
     } catch (err) {
@@ -136,7 +147,7 @@ export default function Compose() {
 
   function selectFromLibrary(item) {
     setImageId(item.id)
-    setImageUrl(`/uploads/${item.filename}`)
+    setImageUrl(`/api/media/${item.id}/file`)
     setShowMediaPicker(false)
     addToast('Image attached')
   }
@@ -518,7 +529,7 @@ export default function Compose() {
               {/* Image preview */}
               {imageUrl && (
                 <div className="rounded-lg overflow-hidden border border-border mb-3 -mx-1">
-                  <img src={imageUrl} alt="" className="w-full object-cover max-h-[200px]" />
+                  <img src={imageUrl} alt="" className="w-full object-contain" />
                 </div>
               )}
 
@@ -580,7 +591,7 @@ export default function Compose() {
                     onClick={() => selectFromLibrary(item)}
                     className="group aspect-square rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:shadow-md"
                   >
-                    <img src={`/uploads/${item.filename}`} alt={item.original_filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                    <img src={`/api/media/${item.id}/file`} alt={item.original_filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
                   </button>
                 ))}
               </div>

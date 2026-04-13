@@ -1,20 +1,17 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using PostizApi.Data;
-using PostizApi.Models;
-using PostizApi.Services;
+using LinkedPushApi.Data;
+using LinkedPushApi.Models;
+using LinkedPushApi.Services;
 
-namespace PostizApi.Controllers;
+namespace LinkedPushApi.Controllers;
 
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private static readonly ConcurrentDictionary<string, DateTime> OAuthStates = new();
-
     private readonly AppDbContext _db;
     private readonly SessionService _session;
     private readonly IConfiguration _config;
@@ -32,9 +29,11 @@ public class AuthController : ControllerBase
     private string ClientId => _config["LinkedIn:ClientId"] ?? "";
     private string ClientSecret => _config["LinkedIn:ClientSecret"] ?? "";
     private string RedirectUri => _config["LinkedIn:RedirectUri"] ?? "http://localhost:5173/auth/callback";
+    private string FrontendUrl => _config["FrontendUrl"] ?? "http://localhost:5173";
+    private string? CookieDomain => _config["CookieDomain"];
 
     [HttpGet("login")]
-    public IActionResult Login()
+    public async Task<IActionResult> Login([FromQuery] int? cli_port = null)
     {
         if (DevMode && string.IsNullOrEmpty(ClientId))
         {
@@ -42,15 +41,25 @@ public class AuthController : ControllerBase
             return Ok(new { redirect_url = $"{kestrelUrl}/api/auth/dev-login" });
         }
 
+        var cutoff = DateTime.UtcNow.AddMinutes(-10);
+        var expiredStates = await _db.OAuthStates
+            .Where(o => o.CreatedAt < cutoff)
+            .ToListAsync();
+        if (expiredStates.Count > 0)
+        {
+            _db.OAuthStates.RemoveRange(expiredStates);
+            await _db.SaveChangesAsync();
+        }
+
         var state = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
-        OAuthStates[state] = DateTime.UtcNow;
-
-        // Clean up old states
-        var cutoff = DateTime.UtcNow.AddMinutes(-10);
-        foreach (var kv in OAuthStates)
-            if (kv.Value < cutoff)
-                OAuthStates.TryRemove(kv.Key, out _);
+        _db.OAuthStates.Add(new OAuthState
+        {
+            State = state,
+            CreatedAt = DateTime.UtcNow,
+            CliPort = cli_port,
+        });
+        await _db.SaveChangesAsync();
 
         var query = $"response_type=code&client_id={ClientId}&redirect_uri={Uri.EscapeDataString(RedirectUri)}&scope={Uri.EscapeDataString("openid profile email w_member_social")}&state={state}";
         return Ok(new { redirect_url = $"https://www.linkedin.com/oauth/v2/authorization?{query}" });
@@ -60,14 +69,21 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Callback([FromQuery] string? code = null, [FromQuery] string? state = null, [FromQuery] string? error = null, [FromQuery] string? error_description = null)
     {
         if (!string.IsNullOrEmpty(error))
-            return Redirect($"http://localhost:5173/login?error={Uri.EscapeDataString(error_description ?? error)}");
+            return Redirect($"{FrontendUrl}/login?error={Uri.EscapeDataString(error_description ?? error)}");
 
         if (string.IsNullOrEmpty(code))
             return BadRequest(new { detail = "Missing authorization code" });
+        int? cliPort = null;
         if (!string.IsNullOrEmpty(ClientId) && !string.IsNullOrEmpty(state))
         {
-            if (!OAuthStates.TryRemove(state, out _))
+            var stateInfo = await _db.OAuthStates
+                .FirstOrDefaultAsync(o => o.State == state);
+            if (stateInfo == null || stateInfo.CreatedAt < DateTime.UtcNow.AddMinutes(-10))
                 return BadRequest(new { detail = "Invalid or expired state parameter" });
+
+            _db.OAuthStates.Remove(stateInfo);
+            await _db.SaveChangesAsync();
+            cliPort = stateInfo.CliPort;
         }
 
         // Exchange code for tokens
@@ -200,13 +216,20 @@ public class AuthController : ControllerBase
         await _db.SaveChangesAsync();
 
         var sessionToken = _session.CreateSessionToken(user.Id);
-        Response.Cookies.Append("session", sessionToken, new CookieOptions
+        var cookieOpts = new CookieOptions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromDays(7),
-        });
-        return Redirect("http://localhost:5173/");
+        };
+        if (!string.IsNullOrEmpty(CookieDomain))
+            cookieOpts.Domain = CookieDomain;
+        Response.Cookies.Append("session", sessionToken, cookieOpts);
+
+        if (cliPort.HasValue)
+            return Redirect($"http://localhost:{cliPort.Value}/cli-callback?session={Uri.EscapeDataString(sessionToken)}");
+
+        return Redirect($"{FrontendUrl}/app");
     }
 
     [HttpGet("dev-login")]
@@ -222,7 +245,7 @@ public class AuthController : ControllerBase
             {
                 LinkedInId = "dev-user",
                 Name = "Dev User",
-                Email = "dev@postiz.local",
+                Email = "dev@linkedpush.local",
                 AvatarUrl = null,
                 AccessToken = "dev-token",
             };
@@ -231,13 +254,16 @@ public class AuthController : ControllerBase
         }
 
         var sessionToken = _session.CreateSessionToken(user.Id);
-        Response.Cookies.Append("session", sessionToken, new CookieOptions
+        var cookieOpts = new CookieOptions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromDays(7),
-        });
-        return Redirect("http://localhost:5173/");
+        };
+        if (!string.IsNullOrEmpty(CookieDomain))
+            cookieOpts.Domain = CookieDomain;
+        Response.Cookies.Append("session", sessionToken, cookieOpts);
+        return Redirect($"{FrontendUrl}/app");
     }
 
     [HttpGet("me")]
