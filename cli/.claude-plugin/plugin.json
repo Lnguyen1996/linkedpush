@@ -1,0 +1,9 @@
+{
+  "name": "linkedpush",
+  "version": "1.0.0",
+  "description": "CLI for scheduling and publishing LinkedIn posts via LinkedPush",
+  "author": {
+    "name": "Lam Nguyen"
+  },
+  "license": "MIT"
+}

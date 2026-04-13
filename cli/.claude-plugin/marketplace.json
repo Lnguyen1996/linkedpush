@@ -1,0 +1,15 @@
+{
+  "name": "linkedpush",
+  "owner": {
+    "name": "Lam Nguyen"
+  },
+  "plugins": [
+    {
+      "name": "linkedpush",
+      "description": "LinkedIn post scheduler CLI",
+      "source": "./",
+      "strict": false,
+      "skills": ["./"]
+    }
+  ]
+}

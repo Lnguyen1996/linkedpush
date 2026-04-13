@@ -1,0 +1,19 @@
+{
+  "name": "linkedpush",
+  "version": "1.0.0",
+  "description": "CLI for scheduling and publishing LinkedIn posts via LinkedPush",
+  "type": "module",
+  "bin": {
+    "linkedpush": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "SKILL.md",
+    "README.md"
+  ],
+  "dependencies": {
+    "commander": "^13.0.0"
+  },
+  "author": "Lam Nguyen",
+  "license": "MIT"
+}
