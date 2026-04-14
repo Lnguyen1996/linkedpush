@@ -28,8 +28,7 @@ public class Media
     public string? FilePath { get; set; }
 
     [Column("data")]
-    [Required]
-    public byte[] Data { get; set; } = Array.Empty<byte>();
+    public byte[]? Data { get; set; }
 
     [Column("file_size")]
     [Required]
@@ -45,6 +44,14 @@ public class Media
 
     [Column("height")]
     public int? Height { get; set; }
+
+    [Column("media_type")]
+    [Required]
+    [MaxLength(20)]
+    public string MediaType { get; set; } = "image";
+
+    [Column("duration")]
+    public int? Duration { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

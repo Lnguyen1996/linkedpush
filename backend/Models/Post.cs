@@ -64,4 +64,5 @@ public class Post
 
     public Comment? FirstComment { get; set; }
     public Analytics? Analytics { get; set; }
+    public List<PostMedia> PostMedia { get; set; } = new();
 }
