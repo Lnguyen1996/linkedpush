@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using LinkedPushApi.Data;
 using LinkedPushApi.Models;
 
@@ -19,6 +20,14 @@ public class LinkedInService
     {
         _config = config;
         _httpFactory = httpFactory;
+    }
+
+    private static byte[] GetMediaBytes(Media m)
+    {
+        if (m.Data != null && m.Data.Length > 0) return m.Data;
+        if (!string.IsNullOrEmpty(m.FilePath) && File.Exists(m.FilePath))
+            return File.ReadAllBytes(m.FilePath);
+        return Array.Empty<byte>();
     }
 
     public async Task<bool> RefreshAccessToken(User user, AppDbContext db, CancellationToken ct = default)
@@ -193,6 +202,257 @@ public class LinkedInService
         return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
     }
 
+    public async Task<string> PublishMultiImagePost(string accessToken, string authorUrn, string text, List<byte[]> imageDataList, CancellationToken ct = default)
+    {
+        var assets = new List<string>();
+        foreach (var imageData in imageDataList)
+        {
+            var asset = await UploadImage(accessToken, authorUrn, imageData, ct);
+            assets.Add(asset);
+        }
+
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        var mediaArray = assets.Select(a => new Dictionary<string, string>
+        {
+            ["status"] = "READY",
+            ["media"] = a
+        }).ToArray();
+
+        var jsonPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["author"] = authorUrn,
+            ["lifecycleState"] = "PUBLISHED",
+            ["specificContent"] = new Dictionary<string, object>
+            {
+                ["com.linkedin.ugc.ShareContent"] = new Dictionary<string, object>
+                {
+                    ["shareCommentary"] = new Dictionary<string, string> { ["text"] = text },
+                    ["shareMediaCategory"] = "IMAGE",
+                    ["media"] = mediaArray
+                }
+            },
+            ["visibility"] = new Dictionary<string, string>
+            {
+                ["com.linkedin.ugc.MemberNetworkVisibility"] = "PUBLIC"
+            }
+        });
+
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
+        resp.EnsureSuccessStatusCode();
+        var respJson = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(respJson);
+        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+    }
+
+    public async Task<string> UploadVideo(string accessToken, string authorUrn, byte[] videoData, CancellationToken ct = default)
+    {
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        // Register upload with video recipe
+        var registerPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["registerUploadRequest"] = new Dictionary<string, object>
+            {
+                ["recipes"] = new[] { "urn:li:digitalmediaRecipe:feedshare-video" },
+                ["owner"] = authorUrn,
+                ["serviceRelationships"] = new[]
+                {
+                    new Dictionary<string, string>
+                    {
+                        ["relationshipType"] = "OWNER",
+                        ["identifier"] = "urn:li:userGeneratedContent"
+                    }
+                }
+            }
+        });
+
+        var registerContent = new StringContent(registerPayload, Encoding.UTF8, "application/json");
+        var registerResp = await client.PostAsync($"{LinkedInApiBase}/assets?action=registerUpload", registerContent, ct);
+        registerResp.EnsureSuccessStatusCode();
+        var registerJson = await registerResp.Content.ReadAsStringAsync(ct);
+        using var registerDoc = JsonDocument.Parse(registerJson);
+        var value = registerDoc.RootElement.GetProperty("value");
+        var uploadUrl = value.GetProperty("uploadMechanism")
+            .GetProperty("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")
+            .GetProperty("uploadUrl").GetString()!;
+        var asset = value.GetProperty("asset").GetString()!;
+
+        // Upload binary
+        var uploadClient = _httpFactory.CreateClient();
+        uploadClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        uploadClient.Timeout = TimeSpan.FromMinutes(10);
+        var byteContent = new ByteArrayContent(videoData);
+        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        var uploadResp = await uploadClient.PutAsync(uploadUrl, byteContent, ct);
+        uploadResp.EnsureSuccessStatusCode();
+
+        // Poll until processing is complete (ALLOWED status)
+        var assetId = asset.Replace("urn:li:digitalmediaAsset:", "");
+        var pollClient = _httpFactory.CreateClient();
+        pollClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        pollClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        var timeout = DateTime.UtcNow.AddMinutes(5);
+        while (DateTime.UtcNow < timeout)
+        {
+            await Task.Delay(5000, ct);
+            var statusResp = await pollClient.GetAsync($"{LinkedInApiBase}/assets/{assetId}", ct);
+            if (statusResp.IsSuccessStatusCode)
+            {
+                var statusJson = await statusResp.Content.ReadAsStringAsync(ct);
+                using var statusDoc = JsonDocument.Parse(statusJson);
+                var recipes = statusDoc.RootElement.GetProperty("recipes");
+                foreach (var recipe in recipes.EnumerateArray())
+                {
+                    if (recipe.TryGetProperty("status", out var s) && s.GetString() == "AVAILABLE")
+                        return asset;
+                }
+            }
+        }
+
+        // Return asset even if polling times out — LinkedIn may still process it
+        Console.WriteLine($"[LinkedIn] Video processing poll timed out for asset {asset}");
+        return asset;
+    }
+
+    public async Task<string> PublishVideoPost(string accessToken, string authorUrn, string text, Media videoMedia, CancellationToken ct = default)
+    {
+        var videoData = GetMediaBytes(videoMedia);
+        var asset = await UploadVideo(accessToken, authorUrn, videoData, ct);
+
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        var jsonPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["author"] = authorUrn,
+            ["lifecycleState"] = "PUBLISHED",
+            ["specificContent"] = new Dictionary<string, object>
+            {
+                ["com.linkedin.ugc.ShareContent"] = new Dictionary<string, object>
+                {
+                    ["shareCommentary"] = new Dictionary<string, string> { ["text"] = text },
+                    ["shareMediaCategory"] = "VIDEO",
+                    ["media"] = new[]
+                    {
+                        new Dictionary<string, string>
+                        {
+                            ["status"] = "READY",
+                            ["media"] = asset
+                        }
+                    }
+                }
+            },
+            ["visibility"] = new Dictionary<string, string>
+            {
+                ["com.linkedin.ugc.MemberNetworkVisibility"] = "PUBLIC"
+            }
+        });
+
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
+        resp.EnsureSuccessStatusCode();
+        var respJson = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(respJson);
+        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+    }
+
+    public async Task<string> UploadDocument(string accessToken, string authorUrn, byte[] documentData, CancellationToken ct = default)
+    {
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        var registerPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["registerUploadRequest"] = new Dictionary<string, object>
+            {
+                ["recipes"] = new[] { "urn:li:digitalmediaRecipe:feedshare-document" },
+                ["owner"] = authorUrn,
+                ["serviceRelationships"] = new[]
+                {
+                    new Dictionary<string, string>
+                    {
+                        ["relationshipType"] = "OWNER",
+                        ["identifier"] = "urn:li:userGeneratedContent"
+                    }
+                }
+            }
+        });
+
+        var registerContent = new StringContent(registerPayload, Encoding.UTF8, "application/json");
+        var registerResp = await client.PostAsync($"{LinkedInApiBase}/assets?action=registerUpload", registerContent, ct);
+        registerResp.EnsureSuccessStatusCode();
+        var registerJson = await registerResp.Content.ReadAsStringAsync(ct);
+        using var registerDoc = JsonDocument.Parse(registerJson);
+        var value = registerDoc.RootElement.GetProperty("value");
+        var uploadUrl = value.GetProperty("uploadMechanism")
+            .GetProperty("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")
+            .GetProperty("uploadUrl").GetString()!;
+        var asset = value.GetProperty("asset").GetString()!;
+
+        // Upload binary
+        var uploadClient = _httpFactory.CreateClient();
+        uploadClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        uploadClient.Timeout = TimeSpan.FromMinutes(5);
+        var byteContent = new ByteArrayContent(documentData);
+        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        var uploadResp = await uploadClient.PutAsync(uploadUrl, byteContent, ct);
+        uploadResp.EnsureSuccessStatusCode();
+
+        return asset;
+    }
+
+    public async Task<string> PublishDocumentPost(string accessToken, string authorUrn, string text, Media documentMedia, CancellationToken ct = default)
+    {
+        var documentData = GetMediaBytes(documentMedia);
+        var asset = await UploadDocument(accessToken, authorUrn, documentData, ct);
+
+        var client = _httpFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        var jsonPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["author"] = authorUrn,
+            ["lifecycleState"] = "PUBLISHED",
+            ["specificContent"] = new Dictionary<string, object>
+            {
+                ["com.linkedin.ugc.ShareContent"] = new Dictionary<string, object>
+                {
+                    ["shareCommentary"] = new Dictionary<string, string> { ["text"] = text },
+                    ["shareMediaCategory"] = "NATIVE_DOCUMENT",
+                    ["media"] = new[]
+                    {
+                        new Dictionary<string, string>
+                        {
+                            ["status"] = "READY",
+                            ["media"] = asset
+                        }
+                    }
+                }
+            },
+            ["visibility"] = new Dictionary<string, string>
+            {
+                ["com.linkedin.ugc.MemberNetworkVisibility"] = "PUBLIC"
+            }
+        });
+
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
+        resp.EnsureSuccessStatusCode();
+        var respJson = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(respJson);
+        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+    }
+
     public async Task<string> PostComment(string accessToken, string postUrn, string authorUrn, string text, CancellationToken ct = default)
     {
         var client = _httpFactory.CreateClient();
@@ -244,7 +504,32 @@ public class LinkedInService
             var plainText = StripHtml(post.Content);
 
             string postUrn;
-            if (post.Image != null && post.Image.Data.Length > 0)
+
+            // Check post_media junction for multi-attachment support
+            var postMedia = post.PostMedia?.Where(pm => pm.Media != null).OrderBy(pm => pm.Position).ToList();
+            if (postMedia == null || postMedia.Count == 0)
+            {
+                // Try loading from DB if not already included
+                postMedia = await db.PostMedia
+                    .Where(pm => pm.PostId == post.Id)
+                    .OrderBy(pm => pm.Position)
+                    .Include(pm => pm.Media)
+                    .ToListAsync(ct);
+            }
+
+            if (postMedia.Count > 0)
+            {
+                var mediaType = postMedia[0].Media.MediaType;
+                postUrn = mediaType switch
+                {
+                    "video" => await PublishVideoPost(accessToken, authorUrn, plainText, postMedia[0].Media, ct),
+                    "document" => await PublishDocumentPost(accessToken, authorUrn, plainText, postMedia[0].Media, ct),
+                    "image" when postMedia.Count == 1 => await PublishImagePost(accessToken, authorUrn, plainText, GetMediaBytes(postMedia[0].Media), ct),
+                    "image" => await PublishMultiImagePost(accessToken, authorUrn, plainText, postMedia.Select(pm => GetMediaBytes(pm.Media)).ToList(), ct),
+                    _ => await PublishTextPost(accessToken, authorUrn, plainText, ct)
+                };
+            }
+            else if (post.Image != null && post.Image.Data != null && post.Image.Data.Length > 0)
                 postUrn = await PublishImagePost(accessToken, authorUrn, plainText, post.Image.Data, ct);
             else
                 postUrn = await PublishTextPost(accessToken, authorUrn, plainText, ct);
