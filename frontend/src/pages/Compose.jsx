@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronDown, ChevronUp, Calendar, Save, Send, ImagePlus, X,
   FolderOpen, Zap, Sparkles, MessageSquare, Globe, Eye, Clock,
-  ArrowLeft, Check, Loader2
+  ArrowLeft, Check, Loader2, Video, FileText, Play, Plus
 } from 'lucide-react'
 import TipTapEditor from '../components/TipTapEditor'
 import { useToast } from '../components/Toast'
@@ -42,16 +42,19 @@ export default function Compose() {
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [imageId, setImageId] = useState(null)
-  const [imageUrl, setImageUrl] = useState(null)
+  const [mediaType, setMediaType] = useState(null) // 'image' | 'video' | 'document'
+  const [mediaIds, setMediaIds] = useState([])
+  const [mediaItems, setMediaItems] = useState([]) // { id, url, media_type, original_filename, duration, mime_type }
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [showMediaPicker, setShowMediaPicker] = useState(false)
-  const [mediaItems, setMediaItems] = useState([])
+  const [libraryItems, setLibraryItems] = useState([])
   const [uploading, setUploading] = useState(false)
   const [showAiModal, setShowAiModal] = useState(false)
   const [aiTopic, setAiTopic] = useState('')
   const [aiTone, setAiTone] = useState('professional')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [postStatus, setPostStatus] = useState('draft')
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     if (id) loadPost(id)
@@ -69,8 +72,13 @@ export default function Compose() {
 
   async function loadPost(postId) {
     setLoading(true)
+    setNotFound(false)
     try {
       const res = await fetch(`/api/posts/${postId}`, { credentials: 'include' })
+      if (!res.ok) {
+        setNotFound(true)
+        return
+      }
       if (res.ok) {
         const post = await res.json()
         setTitle(post.title || '')
@@ -98,9 +106,32 @@ export default function Compose() {
           setShowSchedule(true)
         }
         if (post.timezone) setTimezone(post.timezone)
-        if (post.image_id) {
-          setImageId(post.image_id)
-          setImageUrl(post.image_url)
+        // Load media attachments from post.media array
+        if (post.media && post.media.length > 0) {
+          const items = post.media.map(m => ({
+            id: m.id,
+            url: m.url || `/api/media/${m.id}/file`,
+            media_type: m.media_type || 'image',
+            original_filename: m.original_filename || '',
+            duration: m.duration,
+            mime_type: m.mime_type || '',
+          }))
+          setMediaItems(items)
+          setMediaIds(items.map(m => m.id))
+          setMediaType(items[0].media_type)
+        } else if (post.image_id) {
+          // Backward compat: single image_id
+          const item = {
+            id: post.image_id,
+            url: post.image_url || `/api/media/${post.image_id}/file`,
+            media_type: 'image',
+            original_filename: '',
+            duration: null,
+            mime_type: '',
+          }
+          setMediaItems([item])
+          setMediaIds([post.image_id])
+          setMediaType('image')
         }
       }
     } catch (err) {
@@ -110,46 +141,159 @@ export default function Compose() {
     }
   }
 
-  async function handleImageUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function formatDuration(seconds) {
+    if (!seconds) return ''
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
+
+  async function handleMediaUpload(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    // Enforce limits
+    if (mediaType === 'image' && mediaItems.length + files.length > 9) {
+      addToast('Maximum 9 images per post', 'error')
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+    if ((mediaType === 'video' || mediaType === 'document') && (mediaItems.length > 0 || files.length > 1)) {
+      addToast(`Only 1 ${mediaType} per post`, 'error')
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+
     setUploading(true)
+    setUploadProgress(0)
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/media', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      })
-      if (res.ok) {
-        const media = await res.json()
-        setImageId(media.id)
-        setImageUrl(media.url)
-        addToast('Image uploaded')
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        let media
+        // Use XMLHttpRequest for video to track progress
+        if (mediaType === 'video') {
+          media = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('POST', '/api/media')
+            xhr.withCredentials = true
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                setUploadProgress(Math.round((e.loaded / e.total) * 100))
+              }
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(JSON.parse(xhr.responseText))
+              } else {
+                try {
+                  const err = JSON.parse(xhr.responseText)
+                  reject(new Error(err.detail || 'Upload failed'))
+                } catch {
+                  reject(new Error('Upload failed'))
+                }
+              }
+            }
+            xhr.onerror = () => reject(new Error('Upload failed'))
+            xhr.send(formData)
+          })
+        } else {
+          const res = await fetch('/api/media', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            addToast(err.detail || 'Upload failed', 'error')
+            continue
+          }
+          media = await res.json()
+        }
+
+        const item = {
+          id: media.id,
+          url: media.url || `/api/media/${media.id}/file`,
+          media_type: media.media_type || mediaType,
+          original_filename: media.original_filename || file.name,
+          duration: media.duration,
+          mime_type: media.mime_type || file.type,
+        }
+        setMediaItems(prev => [...prev, item])
+        setMediaIds(prev => [...prev, media.id])
+        addToast(`${mediaType === 'image' ? 'Image' : mediaType === 'video' ? 'Video' : 'Document'} uploaded`)
       }
     } catch (err) {
       console.error('Upload failed:', err)
-      addToast('Upload failed', 'error')
+      addToast(err.message || 'Upload failed', 'error')
     } finally {
       setUploading(false)
+      setUploadProgress(0)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  function removeMediaItem(id) {
+    setMediaItems(prev => prev.filter(m => m.id !== id))
+    setMediaIds(prev => prev.filter(mid => mid !== id))
+  }
+
+  function clearAllMedia() {
+    setMediaItems([])
+    setMediaIds([])
+    setMediaType(null)
+  }
+
+  function switchMediaType(type) {
+    if (type === mediaType) {
+      // Toggle off
+      clearAllMedia()
+      return
+    }
+    // Clear existing and switch
+    setMediaItems([])
+    setMediaIds([])
+    setMediaType(type)
   }
 
   async function openMediaPicker() {
     try {
       const res = await fetch('/api/media', { credentials: 'include' })
-      if (res.ok) setMediaItems(await res.json())
+      if (res.ok) setLibraryItems(await res.json())
     } catch {}
     setShowMediaPicker(true)
   }
 
   function selectFromLibrary(item) {
-    setImageId(item.id)
-    setImageUrl(`/api/media/${item.id}/file`)
+    const mType = item.media_type || 'image'
+    // If switching types, clear first
+    if (mediaType && mediaType !== mType) {
+      setMediaItems([])
+      setMediaIds([])
+    }
+    if (mType !== 'image' && mediaItems.length > 0) {
+      addToast(`Only 1 ${mType} per post`, 'error')
+      return
+    }
+    if (mType === 'image' && mediaItems.length >= 9) {
+      addToast('Maximum 9 images per post', 'error')
+      return
+    }
+    const newItem = {
+      id: item.id,
+      url: `/api/media/${item.id}/file`,
+      media_type: mType,
+      original_filename: item.original_filename || '',
+      duration: item.duration,
+      mime_type: item.mime_type || '',
+    }
+    setMediaType(mType)
+    setMediaItems(prev => [...prev, newItem])
+    setMediaIds(prev => [...prev, item.id])
     setShowMediaPicker(false)
-    addToast('Image attached')
+    addToast('Media attached')
   }
 
   async function savePost(status) {
@@ -161,7 +305,9 @@ export default function Compose() {
         status,
         first_comment: firstComment || null,
         timezone,
-        image_id: imageId,
+        media_ids: mediaIds.length > 0 ? mediaIds : undefined,
+        // Backward compat: if single image, also send image_id
+        image_id: (mediaItems.length === 1 && mediaType === 'image') ? mediaItems[0].id : undefined,
       }
 
       if (status === 'scheduled' && scheduledDate && scheduledTime) {
@@ -234,7 +380,7 @@ export default function Compose() {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [content, title, firstComment, timezone, imageId])
+  }, [content, title, firstComment, timezone, mediaIds])
 
   async function generateCaption() {
     setAiGenerating(true)
@@ -268,6 +414,22 @@ export default function Compose() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 size={24} className="text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  if (notFound) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.04] ring-1 ring-white/10">
+          <Eye size={28} className="text-white/40" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Post not found</h2>
+        <p className="text-sm text-white/50 mb-6">This post may have been deleted or doesn't exist.</p>
+        <Button variant="outline" onClick={() => navigate('/app')}>
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </Button>
       </div>
     )
   }
@@ -325,50 +487,178 @@ export default function Compose() {
             }}
           />
 
-          {/* Image attachment */}
+          {/* Media attachment */}
           <Card>
             <CardContent className="pt-0">
               <div className="flex items-center gap-2 mb-3">
                 <ImagePlus size={15} className="text-muted-foreground" />
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Media</span>
               </div>
-              {imageUrl ? (
-                <div className="relative inline-block group">
-                  <img src={imageUrl} alt="Attached" className="max-h-44 rounded-xl border border-border shadow-sm" />
+
+              {/* Media type selector buttons */}
+              <div className="flex items-center gap-2 mb-3">
+                {[
+                  { type: 'image', icon: ImagePlus, label: 'Image', accept: 'image/jpeg,image/png,image/gif', multiple: true },
+                  { type: 'video', icon: Video, label: 'Video', accept: 'video/mp4,video/webm,video/quicktime', multiple: false },
+                  { type: 'document', icon: FileText, label: 'Document', accept: '.pdf,.pptx', multiple: false },
+                ].map(({ type, icon: Icon, label }) => (
                   <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => { setImageId(null); setImageUrl(null) }}
-                    className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-all"
+                    key={type}
+                    variant={mediaType === type ? 'secondary' : 'outline'}
+                    size="sm"
+                    onClick={() => switchMediaType(type)}
+                    className={cn(
+                      'transition-all',
+                      mediaType === type && 'bg-purple-600/20 text-purple-400 border-purple-500/30 hover:bg-purple-600/30'
+                    )}
                   >
-                    <X size={12} />
+                    <Icon size={14} />
+                    {label}
                   </Button>
-                </div>
-              ) : (
+                ))}
+                {mediaItems.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearAllMedia} className="text-muted-foreground hover:text-destructive">
+                    <X size={14} />
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              {/* Upload area — shown when a type is selected */}
+              {mediaType && mediaItems.length === 0 && !uploading && (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     onClick={() => fileRef.current?.click()}
-                    disabled={uploading}
                     className="border-dashed"
                   >
-                    {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />}
-                    {uploading ? 'Uploading...' : 'Upload Image'}
+                    <ImagePlus size={15} />
+                    Upload {mediaType === 'image' ? 'Image(s)' : mediaType === 'video' ? 'Video' : 'Document'}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={openMediaPicker}
-                  >
+                  <Button variant="outline" onClick={openMediaPicker}>
                     <FolderOpen size={15} />
                     Library
                   </Button>
                 </div>
               )}
+
+              {/* Upload progress bar (video) */}
+              {uploading && mediaType === 'video' && uploadProgress > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Loader2 size={14} className="animate-spin text-purple-400" />
+                    <span className="text-xs text-muted-foreground">Uploading video... {uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-purple-500 transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Generic uploading state */}
+              {uploading && !(mediaType === 'video' && uploadProgress > 0) && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Loader2 size={14} className="animate-spin text-purple-400" />
+                  <span className="text-xs text-muted-foreground">
+                    Uploading{mediaType === 'document' ? ' (converting if PPTX)...' : '...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Image thumbnails strip */}
+              {mediaType === 'image' && mediaItems.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {mediaItems.map(item => (
+                      <div key={item.id} className="relative group">
+                        <img
+                          src={item.url}
+                          alt="Attached"
+                          className="h-20 w-20 rounded-lg border border-border object-cover shadow-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeMediaItem(item.id)}
+                          className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-all"
+                        >
+                          <X size={10} />
+                        </Button>
+                      </div>
+                    ))}
+                    {mediaItems.length < 9 && !uploading && (
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-white/10 text-white/30 hover:border-purple-500/30 hover:text-purple-400 transition-colors"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{mediaItems.length}/9 images</p>
+                </div>
+              )}
+
+              {/* Video preview */}
+              {mediaType === 'video' && mediaItems.length > 0 && (
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
+                    <Play size={18} className="text-purple-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{mediaItems[0].original_filename || 'Video'}</p>
+                    {mediaItems[0].duration && (
+                      <p className="text-xs text-muted-foreground">Duration: {formatDuration(mediaItems[0].duration)}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeMediaItem(mediaItems[0].id)}
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              )}
+
+              {/* Document preview */}
+              {mediaType === 'document' && mediaItems.length > 0 && (
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                    <FileText size={18} className="text-blue-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{mediaItems[0].original_filename || 'Document'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {mediaItems[0].mime_type === 'application/pdf' ? 'PDF Carousel' : 'Document'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeMediaItem(mediaItems[0].id)}
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              )}
+
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/jpeg,image/png,image/gif"
-                onChange={handleImageUpload}
+                accept={
+                  mediaType === 'video' ? 'video/mp4,video/webm,video/quicktime' :
+                  mediaType === 'document' ? '.pdf,.pptx' :
+                  'image/jpeg,image/png,image/gif'
+                }
+                multiple={mediaType === 'image'}
+                onChange={handleMediaUpload}
                 className="hidden"
               />
             </CardContent>
@@ -526,10 +816,45 @@ export default function Compose() {
                 {plainText || <span className="text-muted-foreground/50 italic">Your post content will appear here...</span>}
               </div>
 
-              {/* Image preview */}
-              {imageUrl && (
+              {/* Media preview */}
+              {mediaType === 'image' && mediaItems.length === 1 && (
                 <div className="rounded-lg overflow-hidden border border-border mb-3 -mx-1">
-                  <img src={imageUrl} alt="" className="w-full object-contain" />
+                  <img src={mediaItems[0].url} alt="" className="w-full object-contain" />
+                </div>
+              )}
+              {mediaType === 'image' && mediaItems.length > 1 && (
+                <div className={cn(
+                  'grid gap-1 rounded-lg overflow-hidden border border-border mb-3 -mx-1',
+                  mediaItems.length === 2 && 'grid-cols-2',
+                  mediaItems.length >= 3 && 'grid-cols-3',
+                )}>
+                  {mediaItems.slice(0, 9).map(item => (
+                    <img key={item.id} src={item.url} alt="" className="w-full aspect-square object-cover" />
+                  ))}
+                </div>
+              )}
+              {mediaType === 'video' && mediaItems.length > 0 && (
+                <div className="rounded-lg overflow-hidden border border-border mb-3 -mx-1 bg-black/40 flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-white/10 mb-2">
+                      <Play size={24} className="text-white/70 ml-0.5" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Video attached</p>
+                    {mediaItems[0].duration && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatDuration(mediaItems[0].duration)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {mediaType === 'document' && mediaItems.length > 0 && (
+                <div className="rounded-lg border border-border mb-3 -mx-1 bg-blue-500/5 flex items-center gap-2 px-3 py-3">
+                  <FileText size={18} className="text-blue-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground">Carousel</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {mediaItems[0].mime_type === 'application/pdf' ? 'PDF' : 'Document'}
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -578,22 +903,36 @@ export default function Compose() {
             <DialogTitle>Select from Media Library</DialogTitle>
           </DialogHeader>
           <div className="overflow-auto max-h-[60vh]">
-            {mediaItems.length === 0 ? (
+            {libraryItems.length === 0 ? (
               <div className="text-center py-12">
                 <FolderOpen size={32} className="text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-muted-foreground text-sm">No images in library</p>
+                <p className="text-muted-foreground text-sm">No media in library</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {mediaItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => selectFromLibrary(item)}
-                    className="group aspect-square rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:shadow-md"
-                  >
-                    <img src={`/api/media/${item.id}/file`} alt={item.original_filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
-                  </button>
-                ))}
+                {libraryItems.map(item => {
+                  const mType = item.media_type || 'image'
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => selectFromLibrary(item)}
+                      className="group relative aspect-square rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:shadow-md"
+                    >
+                      {mType === 'image' ? (
+                        <img src={`/api/media/${item.id}/file`} alt={item.original_filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                      ) : mType === 'video' ? (
+                        <div className="w-full h-full bg-black/40 flex items-center justify-center">
+                          <Play size={28} className="text-white/60" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full bg-blue-500/5 flex flex-col items-center justify-center gap-1">
+                          <FileText size={28} className="text-blue-400/60" />
+                          <span className="text-[10px] text-muted-foreground truncate px-2 max-w-full">{item.original_filename}</span>
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
