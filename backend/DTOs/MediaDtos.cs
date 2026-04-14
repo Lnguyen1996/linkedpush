@@ -10,5 +10,7 @@ public class MediaResponseDto
     public string MimeType { get; set; } = "";
     public int? Width { get; set; }
     public int? Height { get; set; }
+    public string MediaType { get; set; } = "image";
+    public int? Duration { get; set; }
     public DateTime? CreatedAt { get; set; }
 }

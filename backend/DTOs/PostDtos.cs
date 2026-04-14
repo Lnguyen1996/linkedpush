@@ -9,6 +9,7 @@ public class PostCreateDto
     public string Status { get; set; } = "draft";
     public string? FirstComment { get; set; }
     public int? ImageId { get; set; }
+    public List<int>? MediaIds { get; set; }
 }
 
 public class PostUpdateDto
@@ -20,6 +21,7 @@ public class PostUpdateDto
     public string? Status { get; set; }
     public string? FirstComment { get; set; }
     public int? ImageId { get; set; }
+    public List<int>? MediaIds { get; set; }
 }
 
 public class PostResponseDto
@@ -37,6 +39,7 @@ public class PostResponseDto
     public int? ImageId { get; set; }
     public string? FirstComment { get; set; }
     public string? ImageUrl { get; set; }
+    public List<MediaAttachmentDto>? Media { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -48,4 +51,18 @@ public class PostListDto
     public int Page { get; set; }
     public int PerPage { get; set; }
     public int TotalPages { get; set; }
+}
+
+public class MediaAttachmentDto
+{
+    public int Id { get; set; }
+    public string MediaType { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string MimeType { get; set; } = "";
+    public string OriginalFilename { get; set; } = "";
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public int? Duration { get; set; }
+    public int FileSize { get; set; }
+    public int Position { get; set; }
 }
