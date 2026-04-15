@@ -1,6 +1,7 @@
 import { Eye, Play, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import PdfThumbnail from '@/components/PdfThumbnail'
 
 export default function LinkedInPreview({
   user,
@@ -79,15 +80,16 @@ export default function LinkedInPreview({
           {mediaType === 'document' && first && (
             <div className="rounded-lg overflow-hidden border border-border mb-3 -mx-1 bg-black relative group">
               <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-                <object
-                  data={`${first.url}#page=1&view=FitH`}
-                  type="application/pdf"
-                  className="absolute inset-0 w-full h-full"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
-                    <FileText size={32} className="text-blue-400" />
-                  </div>
-                </object>
+                <PdfThumbnail
+                  src={first.url}
+                  width={480}
+                  className="absolute inset-0 w-full h-full object-contain bg-white"
+                  fallback={
+                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
+                      <FileText size={32} className="text-blue-400" />
+                    </div>
+                  }
+                />
                 <div className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
                   Carousel
                 </div>

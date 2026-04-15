@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose
 } from '@/components/ui/dialog'
 import MediaPreviewEditor from '@/components/MediaPreviewEditor'
+import PdfThumbnail from '@/components/PdfThumbnail'
 
 export default function MediaLibrary() {
   const [items, setItems] = useState([])
@@ -222,9 +223,18 @@ export default function MediaLibrary() {
                           </div>
                         )}
                         {mType === 'document' && (
-                          <div className="w-full h-48 flex flex-col items-center justify-center gap-2 bg-blue-500/5">
-                            <FileText size={40} className="text-blue-400/60" />
-                            <span className="text-xs text-muted-foreground truncate max-w-[80%] px-2">{item.original_filename}</span>
+                          <div className="w-full h-48 bg-blue-500/5 relative overflow-hidden">
+                            <PdfThumbnail
+                              src={`/api/media/${item.id}/file`}
+                              width={200}
+                              className="w-full h-full object-contain"
+                              fallback={
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                  <FileText size={40} className="text-blue-400/60" />
+                                  <span className="text-xs text-muted-foreground truncate max-w-[80%] px-2">{item.original_filename}</span>
+                                </div>
+                              }
+                            />
                           </div>
                         )}
                       </div>
@@ -288,9 +298,18 @@ export default function MediaLibrary() {
                   />
                 )}
                 {(selected.media_type) === 'document' && (
-                  <div className="w-full h-48 rounded-xl border border-border mb-4 bg-blue-500/5 flex flex-col items-center justify-center gap-2">
-                    <FileText size={40} className="text-blue-400/60" />
-                    <span className="text-xs text-muted-foreground">PDF Document</span>
+                  <div className="w-full h-64 rounded-xl border border-border mb-4 bg-blue-500/5 overflow-hidden">
+                    <PdfThumbnail
+                      src={`/api/media/${selected.id}/file`}
+                      width={480}
+                      className="w-full h-full object-contain"
+                      fallback={
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                          <FileText size={40} className="text-blue-400/60" />
+                          <span className="text-xs text-muted-foreground">PDF Document</span>
+                        </div>
+                      }
+                    />
                   </div>
                 )}
 

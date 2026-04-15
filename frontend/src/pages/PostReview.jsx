@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
+import PdfThumbnail from '@/components/PdfThumbnail'
 
 const statusConfig = {
   draft: { label: 'Draft', color: 'bg-white/10 text-slate-300 border-white/10', icon: FileText },
@@ -243,15 +244,16 @@ export default function PostReview() {
             return (
               <div className="mt-3 relative bg-black">
                 <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-                  <object
-                    data={`${firstMedia.url}#page=1&view=FitH`}
-                    type="application/pdf"
-                    className="absolute inset-0 w-full h-full"
-                  >
-                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
-                      <FileText size={40} className="text-blue-400" />
-                    </div>
-                  </object>
+                  <PdfThumbnail
+                    src={firstMedia.url}
+                    width={640}
+                    className="absolute inset-0 w-full h-full object-contain bg-white"
+                    fallback={
+                      <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
+                        <FileText size={40} className="text-blue-400" />
+                      </div>
+                    }
+                  />
                   <div className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
                     Carousel
                   </div>

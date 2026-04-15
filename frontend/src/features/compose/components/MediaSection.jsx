@@ -4,6 +4,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import PdfThumbnail from '@/components/PdfThumbnail'
 
 const TYPE_CONFIG = [
   { type: 'image', icon: ImagePlus, label: 'Image' },
@@ -155,8 +156,13 @@ export default function MediaSection({
 
         {mediaType === 'document' && first && (
           <div className="flex items-center gap-3 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-              <FileText size={18} className="text-blue-400" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 overflow-hidden">
+              <PdfThumbnail
+                src={`/api/media/${first.id}/file`}
+                width={120}
+                className="w-full h-full object-cover"
+                fallback={<FileText size={18} className="text-blue-400" />}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground truncate">{first.original_filename || 'Document'}</p>
