@@ -61,7 +61,7 @@ public class AuthController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
-        var query = $"response_type=code&client_id={ClientId}&redirect_uri={Uri.EscapeDataString(RedirectUri)}&scope={Uri.EscapeDataString("openid profile email w_member_social")}&state={state}";
+        var query = $"response_type=code&client_id={ClientId}&redirect_uri={Uri.EscapeDataString(RedirectUri)}&scope={Uri.EscapeDataString("openid profile email w_member_social")}&state={state}&prompt=login";
         return Ok(new { redirect_url = $"https://www.linkedin.com/oauth/v2/authorization?{query}" });
     }
 
