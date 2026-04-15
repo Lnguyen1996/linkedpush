@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, NavLink, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { ArrowLeft, CheckCircle2, UserCog, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, UserCog, Loader2, AlertCircle } from 'lucide-react'
 import AppLogo from '../components/AppLogo'
 import { BrandMark } from '../components/AppLogo'
 import { Button } from '@/components/ui/button'
@@ -12,8 +12,15 @@ export default function Login() {
   const [searchParams] = useSearchParams()
   const justSignedOut = searchParams.get('signedout') === '1'
   const [switching, setSwitching] = useState(false)
+  const [loginError, setLoginError] = useState(null)
   const popupRef = useRef(null)
   const timerRef = useRef(null)
+
+  async function handleLogin() {
+    setLoginError(null)
+    const err = await login()
+    if (err) setLoginError(err)
+  }
 
   function cleanupSwitch() {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -39,7 +46,7 @@ export default function Login() {
     timerRef.current = setTimeout(() => {
       try { popup.close() } catch {}
       cleanupSwitch()
-      login()
+      handleLogin()
     }, 2500)
   }
 
@@ -81,15 +88,22 @@ export default function Login() {
               <p className="mt-2 text-sm text-white/55">Continue with your LinkedIn account.</p>
             </div>
 
-            {justSignedOut && (
+            {justSignedOut && !loginError && (
               <div className="mb-5 flex items-start gap-2 border-l-2 border-emerald-400/60 bg-emerald-400/[0.04] py-1.5 pl-3 text-xs text-emerald-200/90">
                 <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-400/80" />
                 <span>You've been signed out. Click below to sign back in.</span>
               </div>
             )}
 
+            {loginError && (
+              <div className="mb-5 flex items-start gap-2 border-l-2 border-rose-400/60 bg-rose-400/[0.04] py-1.5 pl-3 text-xs text-rose-200/90">
+                <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-400/80" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
             <Button
-              onClick={login}
+              onClick={handleLogin}
               disabled={switching}
               className="group h-10 w-full gap-2.5 rounded-md bg-purple text-sm font-medium text-white hover:bg-purple-dark disabled:opacity-60 disabled:cursor-not-allowed"
             >
@@ -118,9 +132,6 @@ export default function Login() {
               )}
             </Button>
 
-            <p className="mt-5 text-center text-[11px] text-white/40">
-              OAuth2 · we never see your password
-            </p>
           </div>
 
           <div className="mt-6 text-center">

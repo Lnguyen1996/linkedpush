@@ -30,12 +30,15 @@ export function AuthProvider({ children }) {
   async function login() {
     try {
       const res = await fetch('/api/auth/login', { credentials: 'include' })
-      const data = await res.json()
-      if (data.redirect_url) {
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.redirect_url) {
         window.location.href = data.redirect_url
+        return null
       }
+      return data.detail || 'Login failed. Check backend logs.'
     } catch (err) {
       console.error('Login failed:', err)
+      return 'Login failed. Check your connection and backend.'
     }
   }
 

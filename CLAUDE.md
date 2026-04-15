@@ -67,9 +67,9 @@ cd frontend && npm run dev
 - Frontend: http://localhost:5173
 - Health check: http://localhost:8000/api/health
 
-**Dev mode (default):** `"DevMode": "true"` in `appsettings.json` — click "Sign in with LinkedIn" to auto-create a dev user. No real LinkedIn credentials needed. AI captions return templates instead of calling Claude API.
+**Dev mode:** `"DevMode": "true"` in `appsettings.json` makes AI captions return templates instead of calling Claude API. The "Sign in with LinkedIn" button always uses real LinkedIn OAuth and requires `LinkedIn:ClientId`/`ClientSecret` to be set — if missing, the button surfaces an error banner.
 
-**Direct dev login:** Navigate to `http://localhost:8000/api/auth/dev-login` to bypass OAuth entirely.
+**Direct dev login (bypass):** Navigate to `http://localhost:8000/api/auth/dev-login` to skip OAuth and create a session for the "Dev User". Used by CLI and Playwright tests.
 
 ## Docker Deployment
 
@@ -223,7 +223,7 @@ linkedpush/
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | /api/health | No | Health check |
-| GET | /api/auth/login | No | LinkedIn OAuth URL (or dev-login redirect) |
+| GET | /api/auth/login | No | LinkedIn OAuth URL (requires ClientId) |
 | GET | /api/auth/callback | No | OAuth callback, creates session |
 | GET | /api/auth/dev-login | No | Dev mode auto-login |
 | GET | /api/auth/me | Yes | Current user profile |

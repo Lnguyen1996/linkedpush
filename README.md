@@ -34,7 +34,7 @@ dotnet run
 
 The backend starts on **http://localhost:8000** (configured in `appsettings.json`).
 
-In dev mode (default `DevMode: true`), no LinkedIn credentials are needed — clicking "Sign in with LinkedIn" auto-creates a dev user.
+The "Sign in with LinkedIn" button always uses real LinkedIn OAuth — set `LinkedIn:ClientId` and `LinkedIn:ClientSecret` in `appsettings.json` first. To bypass OAuth for local hacking, navigate directly to `http://localhost:8000/api/auth/dev-login` (this creates a session for a "Dev User" and redirects to `/app`).
 
 ### 3. Frontend Setup
 

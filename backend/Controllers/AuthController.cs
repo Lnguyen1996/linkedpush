@@ -35,11 +35,8 @@ public class AuthController : ControllerBase
     [HttpGet("login")]
     public async Task<IActionResult> Login([FromQuery] int? cli_port = null)
     {
-        if (DevMode && string.IsNullOrEmpty(ClientId))
-        {
-            var kestrelUrl = _config["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:8000";
-            return Ok(new { redirect_url = $"{kestrelUrl}/api/auth/dev-confirm" });
-        }
+        if (string.IsNullOrEmpty(ClientId))
+            return StatusCode(500, new { detail = "LinkedIn OAuth is not configured. Set LinkedIn:ClientId and LinkedIn:ClientSecret in appsettings.json." });
 
         var cutoff = DateTime.UtcNow.AddMinutes(-10);
         var expiredStates = await _db.OAuthStates
