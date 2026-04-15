@@ -96,11 +96,10 @@ public class AuthController : ControllerBase
         if (!tokenResp.IsSuccessStatusCode)
             return BadRequest(new { detail = "Failed to exchange code for token" });
 
-        if (stateInfo != null)
-        {
-            _db.OAuthStates.Remove(stateInfo);
-            await _db.SaveChangesAsync();
-        }
+        // Deliberately do NOT remove stateInfo here. Chrome speculatively
+        // prefetches the callback URL and a second request would otherwise see
+        // a missing row. The /login handler's 10-minute expiry cleanup removes
+        // stale rows.
 
         var tokenJson = await tokenResp.Content.ReadAsStringAsync();
         using var tokenDoc = JsonDocument.Parse(tokenJson);
