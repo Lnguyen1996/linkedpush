@@ -94,7 +94,7 @@ public class MediaController : ControllerBase
         Id = m.Id,
         Filename = m.Filename,
         OriginalFilename = m.OriginalFilename,
-        Url = $"/api/media/{m.Id}/file",
+        Url = $"/api/media/{m.Id}/file?v={m.Filename}",
         FileSize = m.FileSize,
         MimeType = m.MimeType,
         Width = m.Width,
