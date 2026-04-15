@@ -80,9 +80,9 @@ export default function LinkedInPreview({
             <div className="rounded-lg overflow-hidden border border-border mb-3 -mx-1 bg-black relative group">
               <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
                 <object
-                  data={`${first.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                  data={`${first.url}#page=1&view=FitH`}
                   type="application/pdf"
-                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  className="absolute inset-0 w-full h-full"
                 >
                   <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
                     <FileText size={32} className="text-blue-400" />

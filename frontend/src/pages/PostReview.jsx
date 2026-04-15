@@ -244,9 +244,9 @@ export default function PostReview() {
               <div className="mt-3 relative bg-black">
                 <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
                   <object
-                    data={`${firstMedia.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                    data={`${firstMedia.url}#page=1&view=FitH`}
                     type="application/pdf"
-                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    className="absolute inset-0 w-full h-full"
                   >
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
                       <FileText size={40} className="text-blue-400" />
