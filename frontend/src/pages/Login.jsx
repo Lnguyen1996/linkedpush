@@ -74,6 +74,15 @@ export default function Login() {
               />
             </Button>
 
+            <a
+              href="https://www.linkedin.com/m/logout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 block text-center text-xs text-white/40 hover:text-white/70 underline underline-offset-2"
+            >
+              Wrong account? Sign out of LinkedIn first
+            </a>
+
             <div className="my-5 flex items-center gap-3">
               <Separator className="flex-1 bg-white/10" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-discord-text-secondary">

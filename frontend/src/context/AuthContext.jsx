@@ -46,10 +46,7 @@ export function AuthProvider({ children }) {
       // ignore
     }
     setUser(null)
-    // Also sign out of LinkedIn so the account chooser shows on next login.
-    // session_redirect brings the user back to our /login page.
-    const returnUrl = `${window.location.origin}/login`
-    window.location.href = `https://www.linkedin.com/m/logout?session_redirect=${encodeURIComponent(returnUrl)}`
+    window.location.href = '/login'
   }
 
   return (
