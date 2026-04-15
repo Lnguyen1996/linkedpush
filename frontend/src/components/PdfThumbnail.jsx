@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
+// pdfjs v5 worker uses import.meta, requiring a module worker. Vite's ?url
+// import served a working URL + MIME but the browser still refused the worker
+// (likely due to the minified worker's internal subresource lookups vs a
+// hashed path). Pin to the matching-version CDN build for reliability.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 const cache = new Map()
 
