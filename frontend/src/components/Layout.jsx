@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   PenSquare,
   Image,
-  BarChart3,
   Menu,
   LogOut,
   Plus,
@@ -38,7 +37,6 @@ const navItems = [
   { to: '/app', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/app/compose', icon: PenSquare, label: 'Compose', end: false },
   { to: '/app/media', icon: Image, label: 'Media', end: false },
-  { to: '/app/analytics', icon: BarChart3, label: 'Analytics', end: false },
 ]
 
 function SidebarNav({ scheduledCount, onNavClick, currentPath }) {

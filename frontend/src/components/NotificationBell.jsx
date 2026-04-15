@@ -1,21 +1,21 @@
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Bell, CalendarClock, KeyRound, Loader2, X } from 'lucide-react'
+import { AlertCircle, Bell, Clock, KeyRound, Loader2, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/useNotifications'
 
-function kindIcon(kind) {
+function kindMeta(kind) {
   switch (kind) {
     case 'publish_failed':
-      return AlertCircle
+      return { icon: AlertCircle, color: 'text-red-400' }
     case 'scheduled_soon':
-      return CalendarClock
+      return { icon: Clock, color: 'text-blue-400' }
     case 'linkedin_token_expiring':
-      return KeyRound
+      return { icon: KeyRound, color: 'text-amber-400' }
     default:
-      return Bell
+      return { icon: Bell, color: 'text-white/50' }
   }
 }
 
@@ -93,7 +93,7 @@ function NotificationBell() {
 
           <ul className="space-y-1">
             {visibleItems.map(item => {
-              const Icon = kindIcon(item.kind)
+              const { icon: Icon, color: iconColor } = kindMeta(item.kind)
               const when = item.occurred_at
                 ? formatDistanceToNow(new Date(item.occurred_at), { addSuffix: true })
                 : ''
@@ -120,7 +120,7 @@ function NotificationBell() {
                   className="group rounded-lg border border-white/[0.06] bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06]"
                 >
                   <div className="flex gap-2">
-                    <div className="mt-0.5 shrink-0 text-white/50">
+                    <div className={cn('mt-0.5 shrink-0', iconColor)}>
                       <Icon size={16} strokeWidth={2} />
                     </div>
                     <div className="min-w-0 flex-1">

@@ -41,22 +41,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Ensure database is created and uploads directory exists
+// Apply pending migrations (replaces EnsureCreatedAsync — no more dropping tables for schema changes)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
-    await db.Database.ExecuteSqlRawAsync("""
-        CREATE TABLE IF NOT EXISTS oauth_states (
-            state character varying(128) PRIMARY KEY,
-            created_at timestamp with time zone NOT NULL,
-            cli_port integer NULL
-        )
-        """);
-    await db.Database.ExecuteSqlRawAsync("""
-        CREATE INDEX IF NOT EXISTS ix_oauth_states_created_at
-        ON oauth_states (created_at)
-        """);
+    await db.Database.MigrateAsync();
 }
 
 // Middleware pipeline

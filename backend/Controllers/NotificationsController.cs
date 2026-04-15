@@ -74,7 +74,7 @@ public class NotificationsController : ControllerBase
                 Id = $"post_soon:{s.Id}",
                 Kind = "scheduled_soon",
                 Title = string.IsNullOrWhiteSpace(s.Title) ? "Scheduled post" : s.Title!,
-                Body = $"Publishing at {at:o} (UTC).",
+                Body = $"Publishing {at:MMM d, yyyy} at {at:h:mm tt} UTC",
                 PostId = s.Id,
                 OccurredAt = at,
                 Severity = "info",

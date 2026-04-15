@@ -1,20 +1,21 @@
 import { NavLink } from 'react-router-dom'
 
-/** SVG brand mark — purple gradient square with white send arrow */
+/** SVG brand mark — purple gradient tile with abstract forward symbol */
 export function BrandMark({ className = 'w-9 h-9' }) {
   return (
     <svg className={className} viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <defs>
-        <linearGradient id="lp-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#A78BFA" />
-          <stop offset="50%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#5B21B6" />
+        <linearGradient id="lp-bg" x1="44" y1="40" x2="468" y2="472" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#11001F" />
+          <stop offset="52%" stopColor="#6D28D9" />
+          <stop offset="100%" stopColor="#D20FA9" />
         </linearGradient>
       </defs>
       <rect width="512" height="512" rx="112" fill="url(#lp-bg)" />
-      <g stroke="white" strokeWidth="52" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <path d="M 180 332 L 332 180" />
-        <path d="M 220 180 L 332 180 L 332 292" />
+      <g fill="white">
+        <path d="M 132 271 L 252 175 L 252 388 Z" />
+        <path d="M 272 189 L 380 137 L 380 312 L 272 364 Z" />
+        <path d="M 398 176 L 398 324 L 319 364 L 319 390 L 438 330 L 438 145 Z" />
       </g>
     </svg>
   )
@@ -72,6 +73,22 @@ export default function AppLogo({ variant = 'sidebar', className = '', homePath 
         <span className="text-2xl font-bold tracking-tight text-discord-text-primary">{wordmarkTitle}</span>
         <span className="mt-1 text-sm text-discord-text-secondary">{wordmarkSubtitle}</span>
       </div>
+    )
+  }
+
+  if (variant === 'navMinimal') {
+    return (
+      <NavLink
+        to={homePath}
+        end
+        aria-label="LinkedPush home"
+        className={`inline-flex items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-purple/50 rounded-md ${className}`}
+      >
+        <div className="flex h-7 w-7 shrink-0 overflow-hidden rounded-md">
+          <BrandMark className="h-full w-full" />
+        </div>
+        <span className="text-sm font-semibold tracking-tight text-white">{wordmarkTitle}</span>
+      </NavLink>
     )
   }
 

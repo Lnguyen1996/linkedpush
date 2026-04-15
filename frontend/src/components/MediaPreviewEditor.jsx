@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import 'react-easy-crop/react-easy-crop.css'
 import {
@@ -37,6 +37,8 @@ export default function MediaPreviewEditor({ preview, onSaved, className }) {
   const [maxWidth, setMaxWidth] = useState('')
   const [saving, setSaving] = useState(false)
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 })
+  const scrollRef = useRef(null)
+  const dragState = useRef({ dragging: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 })
 
   useEffect(() => {
     if (!preview?.id) return
@@ -86,6 +88,25 @@ export default function MediaPreviewEditor({ preview, onSaved, className }) {
 
   const onCropComplete = useCallback((_area, areaPixels) => {
     setCroppedAreaPixels(areaPixels)
+  }, [])
+
+  const onDragStart = useCallback(e => {
+    const el = scrollRef.current
+    if (!el) return
+    dragState.current = { dragging: true, startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop }
+    el.style.cursor = 'grabbing'
+  }, [])
+  const onDragMove = useCallback(e => {
+    const d = dragState.current
+    if (!d.dragging) return
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollLeft = d.scrollLeft - (e.clientX - d.startX)
+    el.scrollTop = d.scrollTop - (e.clientY - d.startY)
+  }, [])
+  const onDragEnd = useCallback(() => {
+    dragState.current.dragging = false
+    if (scrollRef.current) scrollRef.current.style.cursor = 'grab'
   }, [])
 
   const outputMime = preview?.mime_type?.includes('png') ? 'image/png' : 'image/jpeg'
@@ -265,7 +286,15 @@ export default function MediaPreviewEditor({ preview, onSaved, className }) {
         }}
       >
         {mode === 'view' && objectUrl && (
-          <div className="max-h-[min(68vh,680px)] w-full overflow-auto">
+          <div
+            ref={scrollRef}
+            className="max-h-[min(68vh,680px)] w-full overflow-auto"
+            style={{ cursor: viewZoom > 1 ? 'grab' : 'default' }}
+            onMouseDown={viewZoom > 1 ? onDragStart : undefined}
+            onMouseMove={viewZoom > 1 ? onDragMove : undefined}
+            onMouseUp={onDragEnd}
+            onMouseLeave={onDragEnd}
+          >
             <div className="flex min-h-[min(50vh,360px)] w-full justify-center p-3">
               <div
                 className="inline-block rounded-md shadow-lg ring-1 ring-white/10"

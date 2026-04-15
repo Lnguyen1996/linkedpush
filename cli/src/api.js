@@ -66,7 +66,12 @@ export async function upload(path, filePath) {
   const fileBuffer = fs.readFileSync(filePath)
   const fileName = nodePath.basename(filePath)
   const ext = nodePath.extname(filePath).toLowerCase()
-  const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif' }
+  const mimeMap = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif',
+    '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+    '.pdf': 'application/pdf',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  }
   const mime = mimeMap[ext] || 'application/octet-stream'
 
   const boundary = '----LinkedPushCLI' + Date.now()

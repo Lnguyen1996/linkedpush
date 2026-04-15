@@ -74,6 +74,17 @@
   height: 22px;
 }
 
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.radial-glow {
+  background: radial-gradient(600px 300px at 50% -10%, rgba(124,58,237,0.25), transparent 70%);
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

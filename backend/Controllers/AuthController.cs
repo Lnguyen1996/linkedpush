@@ -38,7 +38,7 @@ public class AuthController : ControllerBase
         if (DevMode && string.IsNullOrEmpty(ClientId))
         {
             var kestrelUrl = _config["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:8000";
-            return Ok(new { redirect_url = $"{kestrelUrl}/api/auth/dev-login" });
+            return Ok(new { redirect_url = $"{kestrelUrl}/api/auth/dev-confirm" });
         }
 
         var cutoff = DateTime.UtcNow.AddMinutes(-10);
@@ -232,7 +232,58 @@ public class AuthController : ControllerBase
         return Redirect($"{FrontendUrl}/app");
     }
 
+    [HttpGet("dev-confirm")]
+    public IActionResult DevConfirm()
+    {
+        if (!DevMode) return NotFound(new { detail = "Not found" });
+
+        var html = """
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width,initial-scale=1" />
+            <title>Sign in · LinkedPush (dev)</title>
+            <style>
+              body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+                background:#0a0a0a; color:#fff; font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+              .card { width:100%; max-width:380px; border:1px solid rgba(255,255,255,0.1);
+                background:rgba(255,255,255,0.02); border-radius:16px; padding:32px; text-align:center; }
+              .logo { width:40px; height:40px; margin:0 auto 20px; border-radius:10px;
+                background:linear-gradient(135deg,#A78BFA 0%,#7C3AED 50%,#5B21B6 100%);
+                display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; }
+              h1 { margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-0.01em; }
+              p  { margin:0 0 24px; color:rgba(255,255,255,0.55); font-size:13px; }
+              form { margin:0; }
+              button { width:100%; height:40px; border:0; border-radius:6px; background:#7C3AED;
+                color:#fff; font-weight:500; font-size:14px; cursor:pointer; }
+              button:hover { background:#6D28D9; }
+              .badge { display:inline-block; margin-top:16px; padding:2px 8px; border-radius:9999px;
+                border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.5); font-size:11px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="logo">LP</div>
+              <h1>Continue to LinkedPush</h1>
+              <p>You're signing in as the local development user. This screen only appears in dev mode.</p>
+              <form method="post" action="/api/auth/dev-login">
+                <button type="submit">Continue as Dev User</button>
+              </form>
+              <div class="badge">dev mode</div>
+            </div>
+          </body>
+        </html>
+        """;
+
+        return Content(html, "text/html; charset=utf-8");
+    }
+
     [HttpGet("dev-login")]
+    public IActionResult DevLoginGet() =>
+        DevMode ? Redirect("/api/auth/dev-confirm") : NotFound(new { detail = "Not found" });
+
+    [HttpPost("dev-login")]
     public async Task<IActionResult> DevLogin()
     {
         if (!DevMode)

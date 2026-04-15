@@ -8,7 +8,6 @@ import Compose from './pages/Compose'
 
 import MediaLibrary from './pages/MediaLibrary'
 
-import Analytics from './pages/Analytics'
 import PostReview from './pages/PostReview'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -36,12 +35,12 @@ export default function App() {
               <Route path="post/:id" element={<PostReview />} />
 
               <Route path="media" element={<MediaLibrary />} />
-              <Route path="analytics" element={<Analytics />} />
+              {/* Analytics hidden until posts have engagement data */}
             </Route>
             <Route path="/compose" element={<LegacyComposeRedirect />} />
             <Route path="/compose/:id" element={<LegacyComposeRedirect />} />
             <Route path="/media" element={<Navigate to="/app/media" replace />} />
-            <Route path="/analytics" element={<Navigate to="/app/analytics" replace />} />
+            {/* <Route path="/analytics" element={<Navigate to="/app/analytics" replace />} /> */}
           </Routes>
           </ToastProvider>
         </AuthProvider>
