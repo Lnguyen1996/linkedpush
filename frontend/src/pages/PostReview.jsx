@@ -235,16 +235,54 @@ export default function PostReview() {
           </div>
         </div>
 
-        {/* Attached image — full bleed, no padding */}
-        {post.image_url && (
-          <div className="mt-3">
-            <img
-              src={post.image_url}
-              alt="Post attachment"
-              className="w-full"
-            />
-          </div>
-        )}
+        {/* Attached media — full bleed, no padding */}
+        {(() => {
+          const firstMedia = Array.isArray(post.media) && post.media.length > 0 ? post.media[0] : null
+          const mType = firstMedia?.media_type
+          if (mType === 'document') {
+            return (
+              <div className="mt-3 relative bg-black">
+                <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
+                  <object
+                    data={`${firstMedia.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                    type="application/pdf"
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
+                      <FileText size={40} className="text-blue-400" />
+                    </div>
+                  </object>
+                  <div className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+                    Carousel
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-3">
+                    <p className="text-sm font-medium text-white truncate">
+                      {firstMedia.original_filename || 'Document'}
+                    </p>
+                    <p className="text-[11px] text-white/70">
+                      {firstMedia.mime_type === 'application/pdf' ? 'PDF' : 'Document'} · Swipe to view
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+          if (mType === 'image') {
+            return (
+              <div className="mt-3">
+                <img src={firstMedia.url} alt="Post attachment" className="w-full" />
+              </div>
+            )
+          }
+          if (post.image_url) {
+            return (
+              <div className="mt-3">
+                <img src={post.image_url} alt="Post attachment" className="w-full" />
+              </div>
+            )
+          }
+          return null
+        })()}
 
         {/* Engagement bar */}
         <div className="px-5">
