@@ -71,9 +71,11 @@ public class MediaController : ControllerBase
     private static async Task<string?> ConvertPptxToPdfAsync(string pptxPath, CancellationToken ct)
     {
         var outDir = Path.GetDirectoryName(pptxPath)!;
+        var candidates = new[] { "/opt/homebrew/bin/soffice", "/Applications/LibreOffice.app/Contents/MacOS/soffice", "/usr/bin/libreoffice", "/usr/local/bin/libreoffice" };
+        var binary = candidates.FirstOrDefault(System.IO.File.Exists) ?? "libreoffice";
         var psi = new System.Diagnostics.ProcessStartInfo
         {
-            FileName = "libreoffice",
+            FileName = binary,
             Arguments = $"--headless --convert-to pdf --outdir \"{outDir}\" \"{pptxPath}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -257,10 +259,10 @@ public class MediaController : ControllerBase
         if (item == null)
             return NotFound(new { detail = "Media not found" });
 
-        if (!AllowedTypes.Contains(file.ContentType))
-            return BadRequest(new { detail = "Only JPEG, PNG, and GIF files are allowed" });
+        if (!ImageTypes.Contains(file.ContentType))
+            return BadRequest(new { detail = "Only JPEG, PNG, and GIF files are allowed for replacement" });
 
-        if (file.Length > MaxSize)
+        if (file.Length > MaxImageSize)
             return BadRequest(new { detail = "File size exceeds 5MB limit" });
 
         byte[] data;

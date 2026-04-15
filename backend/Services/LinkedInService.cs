@@ -11,7 +11,33 @@ namespace LinkedPushApi.Services;
 public class LinkedInService
 {
     private const string LinkedInApiBase = "https://api.linkedin.com/v2";
+    private const string LinkedInRestBase = "https://api.linkedin.com/rest";
+    private const string LinkedInVersion = "202405";
     private const string LinkedInTokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
+
+    private static async Task EnsureSuccessWithBody(HttpResponseMessage resp, string step, CancellationToken ct)
+    {
+        if (resp.IsSuccessStatusCode) return;
+        string body = "";
+        try { body = await resp.Content.ReadAsStringAsync(ct); } catch { }
+        var trimmed = body.Length > 800 ? body.Substring(0, 800) + "..." : body;
+        throw new HttpRequestException(
+            $"[{step}] LinkedIn {(int)resp.StatusCode} {resp.ReasonPhrase}: {trimmed}",
+            null,
+            resp.StatusCode);
+    }
+
+    // LinkedIn REST Posts API requires escaping these chars in `commentary`.
+    private static string EscapeCommentary(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            if ("|{}@[]()<>#*_~\\".IndexOf(ch) >= 0) sb.Append('\\');
+            sb.Append(ch);
+        }
+        return sb.ToString();
+    }
 
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpFactory;
@@ -364,93 +390,105 @@ public class LinkedInService
         return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
     }
 
-    public async Task<string> UploadDocument(string accessToken, string authorUrn, byte[] documentData, CancellationToken ct = default)
+    // Documents use LinkedIn's versioned REST API. The legacy /v2/assets+ugcPosts flow
+    // with the `feedshare-document` recipe was retired and returns 403 for current apps.
+    public async Task<(string documentUrn, string title)> UploadDocument(string accessToken, string authorUrn, Media documentMedia, CancellationToken ct = default)
     {
+        var documentData = GetMediaBytes(documentMedia);
+        var title = string.IsNullOrWhiteSpace(documentMedia.OriginalFilename)
+            ? "document.pdf"
+            : documentMedia.OriginalFilename!;
+
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        client.DefaultRequestHeaders.Add("LinkedIn-Version", LinkedInVersion);
 
-        var registerPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        var initPayload = JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            ["registerUploadRequest"] = new Dictionary<string, object>
+            ["initializeUploadRequest"] = new Dictionary<string, object>
             {
-                ["recipes"] = new[] { "urn:li:digitalmediaRecipe:feedshare-document" },
-                ["owner"] = authorUrn,
-                ["serviceRelationships"] = new[]
-                {
-                    new Dictionary<string, string>
-                    {
-                        ["relationshipType"] = "OWNER",
-                        ["identifier"] = "urn:li:userGeneratedContent"
-                    }
-                }
+                ["owner"] = authorUrn
             }
         });
 
-        var registerContent = new StringContent(registerPayload, Encoding.UTF8, "application/json");
-        var registerResp = await client.PostAsync($"{LinkedInApiBase}/assets?action=registerUpload", registerContent, ct);
-        registerResp.EnsureSuccessStatusCode();
-        var registerJson = await registerResp.Content.ReadAsStringAsync(ct);
-        using var registerDoc = JsonDocument.Parse(registerJson);
-        var value = registerDoc.RootElement.GetProperty("value");
-        var uploadUrl = value.GetProperty("uploadMechanism")
-            .GetProperty("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")
-            .GetProperty("uploadUrl").GetString()!;
-        var asset = value.GetProperty("asset").GetString()!;
+        var initContent = new StringContent(initPayload, Encoding.UTF8, "application/json");
+        var initResp = await client.PostAsync($"{LinkedInRestBase}/documents?action=initializeUpload", initContent, ct);
+        await EnsureSuccessWithBody(initResp, "documents.initializeUpload", ct);
 
-        // Upload binary
+        var initJson = await initResp.Content.ReadAsStringAsync(ct);
+        using var initDoc = JsonDocument.Parse(initJson);
+        var value = initDoc.RootElement.GetProperty("value");
+        var uploadUrl = value.GetProperty("uploadUrl").GetString()!;
+        var documentUrn = value.GetProperty("document").GetString()!;
+
+        // Upload binary (single-part). LinkedIn returns 201 with no body.
         var uploadClient = _httpFactory.CreateClient();
         uploadClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         uploadClient.Timeout = TimeSpan.FromMinutes(5);
         var byteContent = new ByteArrayContent(documentData);
-        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         var uploadResp = await uploadClient.PutAsync(uploadUrl, byteContent, ct);
-        uploadResp.EnsureSuccessStatusCode();
+        await EnsureSuccessWithBody(uploadResp, "documents.uploadBinary", ct);
 
-        return asset;
+        return (documentUrn, title);
     }
 
     public async Task<string> PublishDocumentPost(string accessToken, string authorUrn, string text, Media documentMedia, CancellationToken ct = default)
     {
-        var documentData = GetMediaBytes(documentMedia);
-        var asset = await UploadDocument(accessToken, authorUrn, documentData, ct);
+        var (documentUrn, title) = await UploadDocument(accessToken, authorUrn, documentMedia, ct);
 
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        client.DefaultRequestHeaders.Add("LinkedIn-Version", LinkedInVersion);
 
         var jsonPayload = JsonSerializer.Serialize(new Dictionary<string, object>
         {
             ["author"] = authorUrn,
-            ["lifecycleState"] = "PUBLISHED",
-            ["specificContent"] = new Dictionary<string, object>
+            ["commentary"] = EscapeCommentary(text),
+            ["visibility"] = "PUBLIC",
+            ["distribution"] = new Dictionary<string, object>
             {
-                ["com.linkedin.ugc.ShareContent"] = new Dictionary<string, object>
+                ["feedDistribution"] = "MAIN_FEED",
+                ["targetEntities"] = Array.Empty<object>(),
+                ["thirdPartyDistributionChannels"] = Array.Empty<object>()
+            },
+            ["content"] = new Dictionary<string, object>
+            {
+                ["media"] = new Dictionary<string, object>
                 {
-                    ["shareCommentary"] = new Dictionary<string, string> { ["text"] = text },
-                    ["shareMediaCategory"] = "NATIVE_DOCUMENT",
-                    ["media"] = new[]
-                    {
-                        new Dictionary<string, string>
-                        {
-                            ["status"] = "READY",
-                            ["media"] = asset
-                        }
-                    }
+                    ["id"] = documentUrn,
+                    ["title"] = title
                 }
             },
-            ["visibility"] = new Dictionary<string, string>
-            {
-                ["com.linkedin.ugc.MemberNetworkVisibility"] = "PUBLIC"
-            }
+            ["lifecycleState"] = "PUBLISHED",
+            ["isReshareDisabledByAuthor"] = false
         });
 
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync($"{LinkedInApiBase}/ugcPosts", content, ct);
-        resp.EnsureSuccessStatusCode();
+        var resp = await client.PostAsync($"{LinkedInRestBase}/posts", content, ct);
+        await EnsureSuccessWithBody(resp, "posts.create(document)", ct);
+
+        // REST Posts API returns the post URN in the x-restli-id header.
+        if (resp.Headers.TryGetValues("x-restli-id", out var ids))
+        {
+            var postUrn = ids.FirstOrDefault();
+            if (!string.IsNullOrEmpty(postUrn)) return postUrn;
+        }
+        // Fallback: some responses include the URN in the body.
         var respJson = await resp.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(respJson);
-        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+        if (!string.IsNullOrWhiteSpace(respJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(respJson);
+                if (doc.RootElement.TryGetProperty("id", out var idEl))
+                    return idEl.GetString() ?? "";
+            }
+            catch { }
+        }
+        return "";
     }
 
     public async Task<string> PostComment(string accessToken, string postUrn, string authorUrn, string text, CancellationToken ct = default)
