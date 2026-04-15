@@ -74,15 +74,13 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(code))
             return BadRequest(new { detail = "Missing authorization code" });
         int? cliPort = null;
+        OAuthState? stateInfo = null;
         if (!string.IsNullOrEmpty(ClientId) && !string.IsNullOrEmpty(state))
         {
-            var stateInfo = await _db.OAuthStates
+            stateInfo = await _db.OAuthStates
                 .FirstOrDefaultAsync(o => o.State == state);
             if (stateInfo == null || stateInfo.CreatedAt < DateTime.UtcNow.AddMinutes(-10))
                 return BadRequest(new { detail = "Invalid or expired state parameter" });
-
-            _db.OAuthStates.Remove(stateInfo);
-            await _db.SaveChangesAsync();
             cliPort = stateInfo.CliPort;
         }
 
@@ -100,6 +98,12 @@ public class AuthController : ControllerBase
         var tokenResp = await client.PostAsync("https://www.linkedin.com/oauth/v2/accessToken", tokenContent);
         if (!tokenResp.IsSuccessStatusCode)
             return BadRequest(new { detail = "Failed to exchange code for token" });
+
+        if (stateInfo != null)
+        {
+            _db.OAuthStates.Remove(stateInfo);
+            await _db.SaveChangesAsync();
+        }
 
         var tokenJson = await tokenResp.Content.ReadAsStringAsync();
         using var tokenDoc = JsonDocument.Parse(tokenJson);

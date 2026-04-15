@@ -39,25 +39,46 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function logout() {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-    } catch {
-      // ignore
-    }
-    setUser(null)
-    // LinkedIn's li_at cookie is SameSite=Lax, so an iframe to /m/logout
-    // won't send it. A popup is a top-level context; cookies flow. Open tiny,
-    // auto-close before the user notices.
+  function logout() {
     const popup = window.open(
       'https://www.linkedin.com/m/logout',
       'lpLogout',
-      'width=400,height=300,left=99999,top=99999'
+      'width=280,height=220,menubar=no,toolbar=no,location=no,status=no'
     )
+
+    const overlay = document.createElement('div')
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-label', 'Signing out')
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:2147483647',
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'flex-direction:column', 'gap:16px',
+      'background:#0a0a0a', 'color:#fff',
+      'font:500 14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+    ].join(';')
+    overlay.innerHTML = `
+      <style>
+        @keyframes lpSpin { to { transform: rotate(360deg) } }
+        .lp-spin { width:20px; height:20px; border:2px solid rgba(255,255,255,.2);
+                   border-top-color:#7C3AED; border-radius:50%;
+                   animation:lpSpin .8s linear infinite; }
+      </style>
+      <div class="lp-spin"></div>
+      <div>Signing out of LinkedIn…</div>
+      <div style="font-size:12px; color:rgba(255,255,255,.5); text-align:center; max-width:320px">
+        A small LinkedIn window may flash — this clears your session so you aren't auto-signed back in.
+      </div>
+    `
+    document.body.appendChild(overlay)
+
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {})
+    setUser(null)
+
     setTimeout(() => {
       try { popup?.close() } catch {}
+      try { overlay.remove() } catch {}
       window.location.href = '/login?signedout=1'
-    }, 1500)
+    }, 2500)
   }
 
   return (
