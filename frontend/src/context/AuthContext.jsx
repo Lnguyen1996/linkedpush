@@ -46,14 +46,18 @@ export function AuthProvider({ children }) {
       // ignore
     }
     setUser(null)
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.src = 'https://www.linkedin.com/m/logout'
-    document.body.appendChild(iframe)
+    // LinkedIn's li_at cookie is SameSite=Lax, so an iframe to /m/logout
+    // won't send it. A popup is a top-level context; cookies flow. Open tiny,
+    // auto-close before the user notices.
+    const popup = window.open(
+      'https://www.linkedin.com/m/logout',
+      'lpLogout',
+      'width=400,height=300,left=99999,top=99999'
+    )
     setTimeout(() => {
-      try { iframe.remove() } catch {}
+      try { popup?.close() } catch {}
       window.location.href = '/login?signedout=1'
-    }, 1200)
+    }, 1500)
   }
 
   return (
