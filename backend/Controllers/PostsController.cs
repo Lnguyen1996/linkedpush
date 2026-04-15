@@ -31,7 +31,7 @@ public class PostsController : ControllerBase
             {
                 Id = m.Id,
                 MediaType = m.MediaType,
-                Url = $"/api/media/{m.Id}/file",
+                Url = $"/api/media/{m.Id}/file?v={m.Filename}",
                 MimeType = m.MimeType,
                 OriginalFilename = m.OriginalFilename,
                 Width = m.Width,
@@ -59,7 +59,7 @@ public class PostsController : ControllerBase
             ErrorMessage = post.ErrorMessage,
             ImageId = post.ImageId,
             FirstComment = post.FirstComment?.Content,
-            ImageUrl = post.Image != null ? $"/api/media/{post.Image.Id}/file" : null,
+            ImageUrl = post.Image != null ? $"/api/media/{post.Image.Id}/file?v={post.Image.Filename}" : null,
             Media = await GetPostMediaAsync(post.Id, ct),
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
