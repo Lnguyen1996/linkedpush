@@ -1,16 +1,12 @@
-import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { ArrowRight, CalendarClock, BarChart3, Zap, Sparkles, UserCog, ExternalLink } from 'lucide-react'
+import { ArrowRight, CalendarClock, BarChart3, Zap, Sparkles, CheckCircle2 } from 'lucide-react'
 import AppLogo from '../components/AppLogo'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 const features = [
@@ -22,17 +18,8 @@ const features = [
 
 export default function Login() {
   const { user, loading, login } = useAuth()
-  const [switchStep, setSwitchStep] = useState(null) // null | 'confirm'
-
-  function startSwitchAccount() {
-    window.open('https://www.linkedin.com/m/logout', '_blank', 'noopener,noreferrer')
-    setSwitchStep('confirm')
-  }
-
-  function continueWithNewAccount() {
-    setSwitchStep(null)
-    login()
-  }
+  const [searchParams] = useSearchParams()
+  const justSignedOut = searchParams.get('signedout') === '1'
 
   if (loading) {
     return (
@@ -75,6 +62,18 @@ export default function Login() {
               </p>
             </div>
 
+            {justSignedOut && (
+              <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-200">
+                <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-400" />
+                <div>
+                  <p className="font-medium">You've been signed out.</p>
+                  <p className="text-emerald-200/75">
+                    To switch accounts, complete the LinkedIn sign-out in the tab we opened, then sign in below.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={login}
               className="group h-auto w-full gap-3 rounded-2xl bg-purple px-6 py-3.5 font-medium text-white shadow-none transition-all duration-200 hover:bg-purple-dark hover:shadow-lg hover:shadow-purple/25 active:scale-[0.98]"
@@ -87,15 +86,6 @@ export default function Login() {
                 size={16}
                 className="-translate-x-2 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
               />
-            </Button>
-
-            <Button
-              variant="ghost"
-              onClick={startSwitchAccount}
-              className="mt-2 h-auto w-full gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm font-medium text-white/70 hover:bg-white/[0.06] hover:text-white"
-            >
-              <UserCog size={15} />
-              Use a different LinkedIn account
             </Button>
 
             <div className="my-5 flex items-center gap-3">
@@ -151,49 +141,6 @@ export default function Login() {
         </p>
       </div>
 
-      <Dialog open={switchStep === 'confirm'} onOpenChange={(o) => !o && setSwitchStep(null)}>
-        <DialogContent className="sm:max-w-md" showCloseButton>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserCog size={18} className="text-purple-400" />
-              Switch LinkedIn accounts
-            </DialogTitle>
-            <DialogDescription>
-              We opened LinkedIn's sign-out page in a new tab. Follow these steps to switch accounts.
-            </DialogDescription>
-          </DialogHeader>
-
-          <ol className="space-y-3 text-sm text-white/80">
-            <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple/20 text-xs font-semibold text-purple-300">1</span>
-              <span>Sign out of LinkedIn in the new tab.</span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple/20 text-xs font-semibold text-purple-300">2</span>
-              <span>Close that tab and come back here.</span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple/20 text-xs font-semibold text-purple-300">3</span>
-              <span>Click <strong>Continue</strong> — LinkedIn will prompt you to sign in with a different account.</span>
-            </li>
-          </ol>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="ghost"
-              onClick={() => window.open('https://www.linkedin.com/m/logout', '_blank', 'noopener,noreferrer')}
-              className="gap-2"
-            >
-              <ExternalLink size={14} />
-              Reopen LinkedIn logout
-            </Button>
-            <Button onClick={continueWithNewAccount} className="bg-purple hover:bg-purple-dark">
-              Continue
-              <ArrowRight size={14} />
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -45,8 +45,11 @@ export function AuthProvider({ children }) {
     } catch {
       // ignore
     }
+    // Open LinkedIn's logout in a new tab so the user is truly signed out.
+    // Without this, LinkedIn silently re-authenticates on next sign-in.
+    window.open('https://www.linkedin.com/m/logout', '_blank', 'noopener,noreferrer')
     setUser(null)
-    window.location.href = '/login'
+    window.location.href = '/login?signedout=1'
   }
 
   return (
