@@ -46,7 +46,14 @@ export function AuthProvider({ children }) {
       // ignore
     }
     setUser(null)
-    window.location.href = '/login?signedout=1'
+    const iframe = document.createElement('iframe')
+    iframe.style.display = 'none'
+    iframe.src = 'https://www.linkedin.com/m/logout'
+    document.body.appendChild(iframe)
+    setTimeout(() => {
+      try { iframe.remove() } catch {}
+      window.location.href = '/login?signedout=1'
+    }, 1200)
   }
 
   return (
