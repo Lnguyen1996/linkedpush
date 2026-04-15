@@ -12,7 +12,7 @@ public class LinkedInService
 {
     private const string LinkedInApiBase = "https://api.linkedin.com/v2";
     private const string LinkedInRestBase = "https://api.linkedin.com/rest";
-    private const string LinkedInVersion = "202405";
+    private const string LinkedInVersion = "202511";
     private const string LinkedInTokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
 
     private static async Task EnsureSuccessWithBody(HttpResponseMessage resp, string step, CancellationToken ct)
