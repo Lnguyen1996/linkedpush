@@ -41,11 +41,13 @@ public class LinkedInService
 
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly ILogger<LinkedInService> _logger;
 
-    public LinkedInService(IConfiguration config, IHttpClientFactory httpFactory)
+    public LinkedInService(IConfiguration config, IHttpClientFactory httpFactory, ILogger<LinkedInService> logger)
     {
         _config = config;
         _httpFactory = httpFactory;
+        _logger = logger;
     }
 
     private static byte[] GetMediaBytes(Media m)
@@ -89,7 +91,7 @@ public class LinkedInService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Auth] Token refresh failed: {ex.Message}");
+            _logger.LogWarning(ex, "Token refresh failed");
             return false;
         }
     }
@@ -343,7 +345,7 @@ public class LinkedInService
         }
 
         // Return asset even if polling times out — LinkedIn may still process it
-        Console.WriteLine($"[LinkedIn] Video processing poll timed out for asset {asset}");
+        _logger.LogWarning("Video processing poll timed out for asset {Asset}", asset);
         return asset;
     }
 
@@ -495,20 +497,36 @@ public class LinkedInService
     {
         var client = _httpFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        client.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        client.DefaultRequestHeaders.Add("LinkedIn-Version", LinkedInVersion);
 
         var payload = JsonSerializer.Serialize(new Dictionary<string, object>
         {
             ["actor"] = authorUrn,
+            ["object"] = postUrn,
             ["message"] = new Dictionary<string, string> { ["text"] = text }
         });
 
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync($"{LinkedInApiBase}/socialActions/{Uri.EscapeDataString(postUrn)}/comments", content, ct);
-        resp.EnsureSuccessStatusCode();
+        var resp = await client.PostAsync($"{LinkedInRestBase}/comments", content, ct);
+        await EnsureSuccessWithBody(resp, "comments.create", ct);
+
+        if (resp.Headers.TryGetValues("x-restli-id", out var ids))
+        {
+            var commentId = ids.FirstOrDefault();
+            if (!string.IsNullOrEmpty(commentId)) return commentId;
+        }
         var json = await resp.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("id", out var id))
+                    return id.GetString() ?? "";
+            }
+            catch { }
+        }
+        return "";
     }
 
     public static string StripHtml(string html)
@@ -580,15 +598,41 @@ public class LinkedInService
 
             if (post.FirstComment != null && !string.IsNullOrEmpty(post.FirstComment.Content))
             {
-                try
+                _logger.LogInformation("Post {PostId}: waiting 3s before posting first comment", post.Id);
+                await Task.Delay(3000, ct);
+                string? commentId = null;
+                Exception? lastEx = null;
+                const int maxAttempts = 2;
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    var commentId = await PostComment(accessToken, postUrn, authorUrn, post.FirstComment.Content, ct);
+                    try
+                    {
+                        _logger.LogInformation("Post {PostId}: posting first comment (attempt {Attempt}/{MaxAttempts})", post.Id, attempt, maxAttempts);
+                        commentId = await PostComment(accessToken, postUrn, authorUrn, post.FirstComment.Content, ct);
+                        break;
+                    }
+                    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound && attempt < maxAttempts)
+                    {
+                        _logger.LogWarning(ex, "Post {PostId}: comment attempt {Attempt} got 404, retrying in 5s", post.Id, attempt);
+                        lastEx = ex;
+                        await Task.Delay(5000, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        lastEx = ex;
+                        break;
+                    }
+                }
+                if (!string.IsNullOrEmpty(commentId))
+                {
+                    _logger.LogInformation("Post {PostId}: first comment posted successfully ({CommentId})", post.Id, commentId);
                     post.FirstComment.LinkedInCommentId = commentId;
                     post.FirstComment.Posted = 1;
                 }
-                catch (Exception ex)
+                else if (lastEx != null)
                 {
-                    post.ErrorMessage = $"Post published but first comment failed: {ex.Message}";
+                    _logger.LogError(lastEx, "Post {PostId}: first comment failed", post.Id);
+                    post.ErrorMessage = $"Post published but first comment failed: {lastEx.Message}";
                 }
             }
 
@@ -655,7 +699,7 @@ public class LinkedInService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Analytics] socialActions fetch failed for post {post.Id}: {ex.Message}");
+            _logger.LogWarning(ex, "Analytics socialActions fetch failed for post {PostId}", post.Id);
         }
 
         try
@@ -679,7 +723,7 @@ public class LinkedInService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Analytics] Share statistics fetch failed for post {post.Id}: {ex.Message}");
+            _logger.LogWarning(ex, "Analytics share statistics fetch failed for post {PostId}", post.Id);
         }
 
         return new Dictionary<string, int>
