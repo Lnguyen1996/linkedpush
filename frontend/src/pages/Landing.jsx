@@ -1,6 +1,8 @@
 import { Navigate, NavLink } from 'react-router-dom'
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   CalendarClock,
   BarChart3,
   Zap,
@@ -9,13 +11,6 @@ import {
   Server,
 } from 'lucide-react'
 
-function GithubIcon({ size = 16, className = '' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <path d="M12 .5C5.73.5.73 5.5.73 11.77c0 4.98 3.23 9.2 7.7 10.7.57.1.78-.24.78-.54v-1.88c-3.13.68-3.8-1.51-3.8-1.51-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 1.72 2.64 1.22 3.28.93.1-.73.4-1.22.72-1.5-2.5-.28-5.13-1.25-5.13-5.58 0-1.23.44-2.24 1.16-3.03-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16.9-.25 1.86-.38 2.82-.38.96 0 1.92.13 2.82.38 2.15-1.46 3.1-1.16 3.1-1.16.61 1.55.23 2.69.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.34-2.64 5.3-5.15 5.57.4.35.76 1.04.76 2.1v3.11c0 .3.2.65.79.54 4.47-1.5 7.69-5.72 7.69-10.7C23.27 5.5 18.27.5 12 .5z" />
-    </svg>
-  )
-}
 import AppLogo from '@/components/AppLogo'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -59,15 +54,6 @@ export default function Landing() {
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
           <AppLogo variant="navMinimal" />
           <nav className="flex items-center gap-1 sm:gap-2">
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white"
-              aria-label="GitHub"
-            >
-              <GithubIcon size={16} />
-            </a>
             <Button
               asChild
               variant="ghost"
@@ -87,10 +73,6 @@ export default function Landing() {
 
       <main className="relative">
         <section className="mx-auto w-full max-w-3xl px-6 pt-24 pb-16 text-center sm:pt-28 sm:pb-20">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-xs font-medium text-white/70">
-            <span className="h-1.5 w-1.5 rounded-full bg-purple" />
-            Self-hosted · v1.0
-          </span>
           <h1 className="mt-6 text-5xl font-semibold tracking-[-0.03em] text-white sm:text-6xl lg:text-7xl">
             LinkedIn content,
             <br />
@@ -108,16 +90,6 @@ export default function Landing() {
                 Get started
                 <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
               </NavLink>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="h-10 gap-2 rounded-md border-white/10 bg-white/[0.02] px-5 text-sm font-medium text-white hover:bg-white/[0.06] hover:text-white"
-            >
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer">
-                <GithubIcon size={14} />
-                View on GitHub
-              </a>
             </Button>
           </div>
         </section>
@@ -208,11 +180,7 @@ export default function Landing() {
       <footer className="border-t border-white/[0.06]">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-4 px-6 py-8 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 LinkedPush</p>
-          <div className="flex items-center gap-6">
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">GitHub</a>
-            <a href="#" className="hover:text-white/70">Docs</a>
-            <a href="#" className="hover:text-white/70">Privacy</a>
-          </div>
+          <NavLink to="/privacy" className="hover:text-white/70">Privacy</NavLink>
         </div>
       </footer>
     </div>
@@ -220,67 +188,133 @@ export default function Landing() {
 }
 
 function DashboardMock() {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const scheduled = new Set(['1-2', '2-4', '3-0', '0-5'])
-  const published = new Set(['0-1', '1-5'])
+  const weekDays = [
+    { short: 'Mon', full: 'Monday', date: '04/14' },
+    { short: 'Tue', full: 'Tuesday', date: '04/15' },
+    { short: 'Wed', full: 'Wednesday', date: '04/16', isToday: true },
+    { short: 'Thu', full: 'Thursday', date: '04/17' },
+    { short: 'Fri', full: 'Friday', date: '04/18' },
+    { short: 'Sat', full: 'Saturday', date: '04/19' },
+    { short: 'Sun', full: 'Sunday', date: '04/20' },
+  ]
+  const hours = [8, 9, 10, 11, 12, 13, 14, 15]
+  const currentHour = 11
+  const mockPosts = {
+    '1-9': { title: 'April recap post', status: 'published' },
+    '2-11': { title: 'Product teaser', status: 'scheduled' },
+    '4-10': { title: 'Founder story', status: 'scheduled' },
+    '6-13': { title: 'Results thread', status: 'published' },
+  }
+  const statusStyles = {
+    scheduled: { bg: 'bg-blue-500/15', text: 'text-blue-300', ring: 'ring-blue-400/20' },
+    published: { bg: 'bg-emerald-500/15', text: 'text-emerald-300', ring: 'ring-emerald-400/20' },
+  }
+
+  function formatHourLabel(hour) {
+    const suffix = hour >= 12 ? 'PM' : 'AM'
+    const h = hour % 12 || 12
+    return `${h}:00${suffix}`
+  }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] shadow-[0_40px_80px_-20px_rgba(124,58,237,0.25)]">
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
-        <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
-        <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
-        <span className="ml-3 text-xs text-white/40">linkedpush · dashboard</span>
-      </div>
-      <div className="p-4 sm:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-white">This week</p>
-            <p className="text-xs text-white/40">April 14 – April 20</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/60">Week</span>
-            <span className="rounded-md bg-purple/20 px-2 py-1 text-[11px] text-purple-light">+ New post</span>
-          </div>
+    <div className="flex h-[410px] min-h-[410px] flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0a0a0a] shadow-sm shadow-black/40">
+      <div className="flex flex-col gap-3 border-b border-white/[0.08] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1">
+          <button type="button" className="rounded-lg p-1.5 text-white/50" aria-label="Previous week">
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-sm font-medium tracking-tight text-white/90">04/14/2026 - 04/20/2026</span>
+          <button type="button" className="rounded-lg p-1.5 text-white/50" aria-label="Next week">
+            <ChevronRight size={16} />
+          </button>
+          <span className="ml-1 rounded-lg px-3 py-1.5 text-sm font-medium text-white/70">Today</span>
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {days.map(d => (
-            <div key={d} className="text-[10px] font-medium uppercase tracking-wider text-white/40">
-              {d}
-            </div>
-          ))}
-          {Array.from({ length: 4 }).map((_, row) =>
-            Array.from({ length: 7 }).map((__, col) => {
-              const key = `${row}-${col}`
-              const isScheduled = scheduled.has(key)
-              const isPublished = published.has(key)
-              return (
-                <div
-                  key={key}
-                  className={`h-14 rounded-md border ${
-                    isScheduled
-                      ? 'border-purple/40 bg-purple/15'
-                      : isPublished
-                      ? 'border-white/10 bg-white/[0.04]'
-                      : 'border-white/[0.06] bg-transparent'
-                  } p-1.5`}
-                >
-                  {isScheduled && (
-                    <>
-                      <div className="h-1 w-6 rounded-full bg-purple/60" />
-                      <div className="mt-1.5 text-[9px] text-purple-light">9:00 AM</div>
-                    </>
-                  )}
-                  {isPublished && (
-                    <>
-                      <div className="h-1 w-5 rounded-full bg-white/25" />
-                      <div className="mt-1.5 text-[9px] text-white/40">Shipped</div>
-                    </>
-                  )}
-                </div>
-              )
-            })
-          )}
+
+        <div className="flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5">
+          <span className="rounded-lg px-3 py-1 text-sm font-medium text-white/50">Day</span>
+          <span className="rounded-lg bg-white/10 px-3 py-1 text-sm font-medium text-white">Week</span>
+          <span className="rounded-lg px-3 py-1 text-sm font-medium text-white/50">Month</span>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 overflow-x-auto">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 overflow-hidden">
+            <table className="w-full table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[52px] sm:w-[72px]" style={{ minWidth: 42 }} />
+                {weekDays.map(day => (
+                  <col key={day.date} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="border-b border-r border-white/[0.06] bg-[#0a0a0a] px-2 py-3" aria-hidden />
+                  {weekDays.map(day => (
+                    <th
+                      key={day.date}
+                      className="border-b border-r border-white/[0.04] bg-[#0a0a0a] px-2 py-3 text-center align-bottom font-normal"
+                    >
+                      <div className="text-[11px] font-medium text-white/60">
+                        <span className="hidden sm:inline">{day.full}</span>
+                        <span className="sm:hidden">{day.short}</span>
+                      </div>
+                      <div className={`mt-0.5 inline-flex items-center justify-center gap-1 text-[10px] font-medium sm:text-sm ${day.isToday ? 'text-purple' : 'text-white/40'}`}>
+                        {day.isToday && <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple sm:h-2 sm:w-2" />}
+                        {day.date}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {hours.map(hour => (
+                  <tr key={hour} className="border-b border-white/[0.04]">
+                    <td className={`border-r border-white/[0.06] px-1 py-2 text-right align-top text-[10px] font-medium sm:px-2 sm:py-3 sm:text-[11px] ${hour < currentHour ? 'text-white/15 line-through' : 'text-white/30'}`}>
+                      {formatHourLabel(hour)}
+                    </td>
+                    {weekDays.map((day, dayIdx) => {
+                      const key = `${dayIdx}-${hour}`
+                      const post = mockPosts[key]
+                      const isPast = dayIdx < 2 || (day.isToday && hour < currentHour)
+                      const colors = post ? statusStyles[post.status] : null
+
+                      return (
+                        <td
+                          key={key}
+                          className={`border-r border-white/[0.05] p-0 align-top relative ${day.isToday && !isPast ? 'bg-purple/[0.03]' : ''}`}
+                          style={
+                            isPast
+                              ? {
+                                  backgroundImage:
+                                    'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 5px)',
+                                }
+                              : undefined
+                          }
+                        >
+                          <div className="min-h-[42px]">
+                            {post && colors && (
+                              <div className={`mx-1 my-1 overflow-hidden rounded-lg ring-1 ${isPast ? 'bg-white/[0.06] ring-white/[0.06]' : `${colors.bg} ${colors.ring}`}`}>
+                                <div className={`h-1.5 w-full ${isPast ? 'bg-white/10' : 'bg-purple'}`} />
+                                <div className="flex items-center gap-1.5 px-2 py-1.5">
+                                  <svg className="h-4 w-4 shrink-0 text-blue-400/60" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                                  </svg>
+                                  <span className={`block w-full truncate text-[11px] font-semibold ${isPast ? 'text-white/40' : colors.text}`}>
+                                    {post.title}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
