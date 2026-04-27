@@ -1,8 +1,21 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Loader2 } from 'lucide-react'
+
+const CALLBACK_ERROR_MESSAGES = {
+  access_denied: 'Google sign-in was canceled. Please try again.',
+  temporarily_unavailable: 'Google sign-in is temporarily unavailable. Please try again shortly.',
+}
+
+function sanitizeText(value, maxLen = 220) {
+  if (!value) return ''
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen)
+}
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -11,24 +24,66 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const code = searchParams.get('code')
-    if (code) {
-      fetch(`/api/auth/callback?code=${code}`, { credentials: 'include', redirect: 'follow' })
-        .then(() => fetchUser())
-        .then(() => navigate('/app'))
-        .catch(() => navigate('/login'))
-    } else {
-      navigate('/login')
+    const state = searchParams.get('state')
+    const oauthError = searchParams.get('error')
+    const oauthErrorDescription = searchParams.get('error_description')
+
+    if (oauthError) {
+      const params = new URLSearchParams({
+        cb_error: oauthError,
+        cb_message:
+          CALLBACK_ERROR_MESSAGES[oauthError] || 'Google sign-in did not complete. Please try again.',
+      })
+      const details = sanitizeText(oauthErrorDescription)
+      if (details) params.set('cb_details', details)
+      navigate(`/login?${params.toString()}`, { replace: true })
+      return
     }
-  }, [])
+
+    if (!code || !state) {
+      const params = new URLSearchParams({
+        cb_error: 'missing_code_or_state',
+        cb_message: 'Sign-in response was incomplete. Please start Google sign-in again.',
+      })
+      navigate(`/login?${params.toString()}`, { replace: true })
+      return
+    }
+
+    const callbackParams = new URLSearchParams({ code, state })
+    fetch(`/api/auth/callback?${callbackParams.toString()}`, {
+      credentials: 'include',
+      redirect: 'follow',
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body?.detail || 'Unable to complete Google sign-in.')
+        }
+      })
+      .then(() => fetchUser())
+      .then(() => navigate('/app', { replace: true }))
+      .catch((err) => {
+        const params = new URLSearchParams({
+          cb_error: 'callback_exchange_failed',
+          cb_message: 'Could not complete Google sign-in. Please try again.',
+        })
+        const details = sanitizeText(err?.message)
+        if (details) params.set('cb_details', details)
+        navigate(`/login?${params.toString()}`, { replace: true })
+      })
+  }, [fetchUser, navigate, searchParams])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <Card className="w-full max-w-xs border-0 bg-transparent shadow-none ring-0">
-        <CardContent className="flex flex-col items-center gap-4 px-0">
-          <Skeleton className="h-10 w-10 rounded-full border-2 border-purple border-t-transparent" />
-          <p className="text-sm text-muted-foreground font-medium animate-fade-in-up">Signing you in...</p>
-        </CardContent>
-      </Card>
+    <div className="relative flex min-h-screen items-center justify-center lp-shell">
+      <div className="relative z-10 flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-purple" />
+        <p className="text-sm font-medium text-white/70 animate-fade-in-up">
+          Signing you in…
+        </p>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/30">
+          Completing Google handshake
+        </span>
+      </div>
     </div>
   )
 }

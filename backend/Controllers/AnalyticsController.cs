@@ -8,6 +8,7 @@ using LinkedPushApi.Services;
 namespace LinkedPushApi.Controllers;
 
 [ApiController]
+[NonController]
 [Route("api/analytics")]
 public class AnalyticsController : ControllerBase
 {

@@ -5,7 +5,7 @@ const sections = [
   {
     title: 'Information We Collect',
     body: [
-      'Account and profile details you provide during sign-in, such as name, email, and LinkedIn profile metadata.',
+      'Account and profile details you provide during sign-in (via Google), such as name, email, and profile photo. When you connect LinkedIn as a publishing integration, we also store the LinkedIn profile metadata LinkedIn returns.',
       'Content and media you create or upload in LinkedPush, including post drafts, scheduled posts, and attached files.',
       'Operational metadata such as timestamps, publish status, and basic usage events required to run the product.',
     ],
@@ -13,7 +13,7 @@ const sections = [
   {
     title: 'How We Use Information',
     body: [
-      'To provide core product features, including drafting, scheduling, publishing, and analytics workflows.',
+      'To provide core product features, including drafting, scheduling, and publishing workflows.',
       'To secure accounts, detect abuse, and keep the service reliable and performant.',
       'To improve product quality through aggregate usage patterns, diagnostics, and bug resolution.',
     ],
@@ -29,7 +29,8 @@ const sections = [
   {
     title: 'Third-Party Services',
     body: [
-      'LinkedIn APIs are used for authentication and publishing actions you explicitly initiate.',
+      'Google OAuth is used for user sign-in. We receive your name, email, and profile photo from Google.',
+      'LinkedIn APIs are used only as a publishing integration — never for sign-in. After you connect LinkedIn in Settings, we use its APIs to publish posts you explicitly create.',
       'Anthropic APIs may be used for AI-assisted writing when that feature is enabled by your workspace.',
       'Infrastructure providers may process data solely to host, secure, and operate the application.',
     ],
@@ -77,10 +78,9 @@ const sections = [
 
 export default function Privacy() {
   return (
-    <div className="relative min-h-screen bg-[#0a0a0a] text-white grid-bg">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] radial-glow" />
-
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0a0a0a]/70 backdrop-blur">
+    <div className="relative min-h-screen bg-[#0a0a0a] text-white noise-bg">
+      <div className="relative z-10">
+        <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0a0a0a]/70 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
           <AppLogo variant="navMinimal" />
           <NavLink
@@ -124,6 +124,7 @@ export default function Privacy() {
           </div>
         </section>
       </main>
+      </div>
     </div>
   )
 }

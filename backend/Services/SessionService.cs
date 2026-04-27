@@ -9,23 +9,35 @@ namespace LinkedPushApi.Services;
 
 public class SessionService
 {
-    private readonly string _secretKey;
+    public sealed record SessionTokenData(int UserId, DateTimeOffset IssuedAt);
 
-    public SessionService(IConfiguration config)
+    private readonly string _secretKey;
+    private readonly JwtService _jwtService;
+
+    public SessionService(IConfiguration config, JwtService jwtService)
     {
-        _secretKey = config["SecretKey"] ?? "dev-secret-key-change-in-production";
+        var secretKey = config["SecretKey"];
+        if (string.IsNullOrEmpty(secretKey))
+            throw new InvalidOperationException(
+                "SecretKey configuration is required. Set the 'SecretKey' environment variable to a cryptographically random string (at least 32 bytes).");
+        _secretKey = secretKey;
+        _jwtService = jwtService;
     }
 
     public string CreateSessionToken(int userId)
     {
-        var payload = JsonSerializer.Serialize(new { user_id = userId, ts = DateTime.UtcNow.ToString("o") });
+        var payload = JsonSerializer.Serialize(new
+        {
+            user_id = userId,
+            iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        });
         var payloadB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
         var sig = ComputeHmac(payloadB64);
         return $"{payloadB64}.{sig}";
     }
 
-    public int? VerifySessionToken(string token)
+    public SessionTokenData? VerifySessionToken(string token)
     {
         try
         {
@@ -49,9 +61,31 @@ public class SessionService
             }
             var json = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
             using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("user_id", out var uid))
-                return uid.GetInt32();
-            return null;
+
+            if (!doc.RootElement.TryGetProperty("user_id", out var uid))
+                return null;
+
+            DateTimeOffset issuedAt;
+            if (doc.RootElement.TryGetProperty("iat", out var iatProp) && iatProp.ValueKind == JsonValueKind.Number)
+            {
+                issuedAt = DateTimeOffset.FromUnixTimeSeconds(iatProp.GetInt64());
+            }
+            else if (doc.RootElement.TryGetProperty("ts", out var tsProp))
+            {
+                if (!DateTimeOffset.TryParse(tsProp.GetString(), out var parsedTs))
+                    return null;
+                issuedAt = parsedTs;
+            }
+            else
+            {
+                return null; // no timestamp — treat as invalid
+            }
+
+            var age = DateTimeOffset.UtcNow - issuedAt;
+            if (age > TimeSpan.FromDays(7) || age < TimeSpan.Zero)
+                return null;
+
+            return new SessionTokenData(uid.GetInt32(), issuedAt);
         }
         catch
         {
@@ -61,11 +95,44 @@ public class SessionService
 
     public async Task<User?> GetCurrentUser(HttpContext context, AppDbContext db)
     {
+        var bearer = context.Request.Headers.Authorization.ToString();
+        if (bearer.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var jwt = bearer["Bearer ".Length..].Trim();
+            if (!string.IsNullOrWhiteSpace(jwt))
+            {
+                var jwtTokenData = _jwtService.VerifyAccessToken(jwt);
+                if (jwtTokenData != null)
+                {
+                    var jwtUser = await db.Users.FindAsync(jwtTokenData.UserId);
+                    if (jwtUser != null && !IsJwtInvalidated(jwtUser, jwtTokenData.IssuedAt))
+                        return jwtUser;
+                }
+            }
+        }
+
+        var accessCookie = context.Request.Cookies["lp_access"];
+        if (!string.IsNullOrWhiteSpace(accessCookie))
+        {
+            var jwtCookieData = _jwtService.VerifyAccessToken(accessCookie);
+            if (jwtCookieData != null)
+            {
+                var jwtUser = await db.Users.FindAsync(jwtCookieData.UserId);
+                if (jwtUser != null && !IsJwtInvalidated(jwtUser, jwtCookieData.IssuedAt))
+                    return jwtUser;
+            }
+        }
+
         var token = context.Request.Cookies["session"];
         if (string.IsNullOrEmpty(token)) return null;
-        var userId = VerifySessionToken(token);
-        if (userId == null) return null;
-        return await db.Users.FindAsync(userId.Value);
+        var tokenData = VerifySessionToken(token);
+        if (tokenData == null) return null;
+        var user = await db.Users.FindAsync(tokenData.UserId);
+        if (user == null) return null;
+        if (user.SessionInvalidBefore.HasValue &&
+            tokenData.IssuedAt <= new DateTimeOffset(DateTime.SpecifyKind(user.SessionInvalidBefore.Value, DateTimeKind.Utc)))
+            return null;
+        return user;
     }
 
     public async Task<User> RequireCurrentUser(HttpContext context, AppDbContext db)
@@ -74,6 +141,13 @@ public class SessionService
         if (user == null)
             throw new UnauthorizedAccessException("Not authenticated");
         return user;
+    }
+
+    private static bool IsJwtInvalidated(User user, DateTimeOffset issuedAt)
+    {
+        if (!user.SessionInvalidBefore.HasValue) return false;
+        var invalidBefore = new DateTimeOffset(DateTime.SpecifyKind(user.SessionInvalidBefore.Value, DateTimeKind.Utc));
+        return issuedAt <= invalidBefore;
     }
 
     private string ComputeHmac(string data)

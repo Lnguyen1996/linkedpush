@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using LinkedPushApi.Data;
 using LinkedPushApi.DTOs;
 using LinkedPushApi.Services;
@@ -31,6 +32,8 @@ public class AiController : ControllerBase
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpFactory;
 
+    private string AnthropicModel => _config["Anthropic:Model"] ?? "claude-sonnet-4-5-20250514";
+
     public AiController(AppDbContext db, SessionService session, IConfiguration config, IHttpClientFactory httpFactory)
     {
         _db = db;
@@ -40,6 +43,7 @@ public class AiController : ControllerBase
     }
 
     [HttpPost("generate")]
+    [EnableRateLimiting("ai-generate")]
     public async Task<IActionResult> Generate([FromBody] GenerateRequest data)
     {
         await _session.RequireCurrentUser(HttpContext, _db);
@@ -48,13 +52,15 @@ public class AiController : ControllerBase
 
         if (string.IsNullOrEmpty(apiKey))
         {
+            var topic = data.Topic ?? "";
+            var safeTopic = topic.Length > 500 ? topic[..500] : topic;
             var templates = new Dictionary<string, string>
             {
-                ["professional"] = $"Excited to share insights on {data.Topic}.\n\nHere are 3 key takeaways:\n\n1. Innovation starts with understanding the problem deeply\n2. The best solutions are often the simplest ones\n3. Continuous learning is the competitive advantage\n\nWhat's your experience with {data.Topic}? I'd love to hear your thoughts in the comments.\n\n#LinkedIn #ProfessionalGrowth #Innovation",
-                ["casual"] = $"Let me tell you something about {data.Topic} that nobody talks about...\n\nI used to think it was all about the big wins. Turns out, it's the small daily habits that make the real difference.\n\nHere's what changed for me:\n\nI started paying attention to the details. And everything shifted.\n\nAnyone else feel the same way? Drop a comment!\n\n#RealTalk #Growth #CareerTips",
-                ["storytelling"] = $"3 years ago, I knew nothing about {data.Topic}.\n\nToday, it's transformed how I work.\n\nHere's the story:\n\nIt started with a simple question from a colleague. That question led me down a rabbit hole I never expected.\n\nThe lesson? Sometimes the most valuable skills come from the most unexpected places.\n\nWhat unexpected skill has changed your career? Share below.\n\n#MyStory #CareerJourney #LessonsLearned",
+                ["professional"] = $"Excited to share insights on {safeTopic}.\n\nHere are 3 key takeaways:\n\n1. Innovation starts with understanding the problem deeply\n2. The best solutions are often the simplest ones\n3. Continuous learning is the competitive advantage\n\nWhat's your experience with {safeTopic}? I'd love to hear your thoughts in the comments.\n\n#LinkedIn #ProfessionalGrowth #Innovation",
+                ["casual"] = $"Let me tell you something about {safeTopic} that nobody talks about...\n\nI used to think it was all about the big wins. Turns out, it's the small daily habits that make the real difference.\n\nHere's what changed for me:\n\nI started paying attention to the details. And everything shifted.\n\nAnyone else feel the same way? Drop a comment!\n\n#RealTalk #Growth #CareerTips",
+                ["storytelling"] = $"3 years ago, I knew nothing about {safeTopic}.\n\nToday, it's transformed how I work.\n\nHere's the story:\n\nIt started with a simple question from a colleague. That question led me down a rabbit hole I never expected.\n\nThe lesson? Sometimes the most valuable skills come from the most unexpected places.\n\nWhat unexpected skill has changed your career? Share below.\n\n#MyStory #CareerJourney #LessonsLearned",
             };
-            var caption = templates.GetValueOrDefault(data.Tone, templates["professional"]);
+            var caption = templates.GetValueOrDefault(data.Tone, templates["professional"]!)!;
             return Ok(new GenerateResponse { Caption = caption });
         }
 
@@ -67,7 +73,7 @@ public class AiController : ControllerBase
 
             var requestBody = JsonSerializer.Serialize(new
             {
-                model = "claude-sonnet-4-5-20250514",
+                model = AnthropicModel,
                 max_tokens = 1024,
                 system = SystemPrompt,
                 messages = new[] { new { role = "user", content = userPrompt } }

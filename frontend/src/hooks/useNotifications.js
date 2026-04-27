@@ -22,7 +22,43 @@ function writeDismissedSet(set) {
   }
 }
 
-/** Notifications from GET /api/notifications plus client dismiss state. */
+/** Fetch notifications from the stored (persisted) endpoint. */
+async function fetchStoredNotifications() {
+  const res = await fetch('/api/notifications/stored', { credentials: 'include' })
+  if (!res.ok) throw new Error('Could not load notifications')
+  const data = await res.json()
+  return Array.isArray(data.items) ? data.items : []
+}
+
+/** Mark a single notification as read. */
+export async function markRead(id) {
+  try {
+    await fetch(`/api/notifications/${id}/read`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+  } catch {
+    // best-effort
+  }
+}
+
+/** Mark all notifications as read. */
+export async function markAllRead() {
+  try {
+    await fetch('/api/notifications/read-all', {
+      method: 'POST',
+      credentials: 'include',
+    })
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Notifications hook — polls the stored endpoint for notification history,
+ * keeps local dismiss state, and exposes read/unread actions.
+ * SignalR real-time pushes are layered on top of polling as a bonus.
+ */
 export function useNotifications(enabled) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -34,14 +70,8 @@ export function useNotifications(enabled) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/notifications', { credentials: 'include' })
-      if (!res.ok) {
-        setError('Could not load notifications')
-        setItems([])
-        return
-      }
-      const data = await res.json()
-      setItems(Array.isArray(data.items) ? data.items : [])
+      const stored = await fetchStoredNotifications()
+      setItems(stored)
     } catch {
       setError('Could not load notifications')
       setItems([])
@@ -57,8 +87,10 @@ export function useNotifications(enabled) {
     return () => clearInterval(t)
   }, [enabled, refetch])
 
+  const unreadCount = useMemo(() => items.filter(i => !i.read_at).length, [items])
+
   const visibleItems = useMemo(
-    () => items.filter(i => i.id && !dismissed.has(i.id)),
+    () => items.filter(i => !i.read_at && !dismissed.has(i.id)),
     [items, dismissed]
   )
 
@@ -82,14 +114,30 @@ export function useNotifications(enabled) {
     })
   }, [items])
 
+  const markReadFn = useCallback(async id => {
+    await markRead(id)
+    setItems(prev =>
+      prev.map(i => (i.id === id ? { ...i, read_at: new Date().toISOString() } : i))
+    )
+  }, [])
+
+  const markAllReadFn = useCallback(async () => {
+    await markAllRead()
+    const now = new Date().toISOString()
+    setItems(prev => prev.map(i => (i.id ? { ...i, read_at: now } : i)))
+  }, [])
+
   return {
     items,
     visibleItems,
     visibleCount: visibleItems.length,
+    unreadCount,
     loading,
     error,
     refetch,
     dismiss,
     dismissAllVisible,
+    markRead: markReadFn,
+    markAllRead: markAllReadFn,
   }
 }

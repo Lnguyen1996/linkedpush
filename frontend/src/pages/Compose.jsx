@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, Eye } from 'lucide-react'
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Loader2, Eye, AlertTriangle, Clock } from 'lucide-react'
+
+const LINKEDIN_AUTH_TOAST_OPTIONS = {
+  duration: 10000,
+  action: { label: 'Go to Settings', to: '/app/settings' },
+}
 import { useToast } from '../components/Toast'
 import { useAuth } from '../context/AuthContext'
+import { useLinkedInStatus } from '../hooks/useLinkedInStatus'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 import LinkedInPreview from '@/features/compose/components/LinkedInPreview'
 import MediaPickerModal from '@/features/compose/components/MediaPickerModal'
@@ -26,12 +38,27 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+const LINKEDIN_AUTH_ERROR_SUBSTRINGS = [
+  'linkedin not connected',
+  'linkedin access token',
+  'please re-authenticate',
+  'linkedin access expired',
+]
+
+function isLinkedInAuthError(detail) {
+  if (!detail || typeof detail !== 'string') return false
+  const lower = detail.toLowerCase()
+  return LINKEDIN_AUTH_ERROR_SUBSTRINGS.some(s => lower.includes(s))
+}
+
 export default function Compose() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
+  const { isConnected, needsReconnect, expiringSoon, daysUntilExpiry } = useLinkedInStatus(user)
+  const publishGated = !isConnected
 
   const draft = usePostDraft()
   const schedule = useScheduleFields()
@@ -39,11 +66,13 @@ export default function Compose() {
 
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [showMediaPicker, setShowMediaPicker] = useState(false)
   const [libraryItems, setLibraryItems] = useState([])
   const [showAiModal, setShowAiModal] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [aiTopic, setAiTopic] = useState('')
   const [aiTone, setAiTone] = useState('professional')
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -93,6 +122,10 @@ export default function Compose() {
   }
 
   async function savePost(status) {
+    if (publishGated && status !== 'draft') {
+      addToast('Connect LinkedIn in Settings first.', 'error')
+      return
+    }
     setSaving(true)
     try {
       const { mediaIds, mediaItems, mediaType } = media
@@ -127,7 +160,13 @@ export default function Compose() {
           navigate(`/compose/${saved.id}`, { replace: true })
         }
       } else {
-        addToast('Failed to save post', 'error')
+        const err = await res.json().catch(() => ({}))
+        if (isLinkedInAuthError(err?.detail)) {
+          addToast('LinkedIn access expired — reconnect to publish.', 'error', LINKEDIN_AUTH_TOAST_OPTIONS)
+          refreshUser?.()
+        } else {
+          addToast(err?.detail || 'Failed to save post', 'error')
+        }
       }
     } catch (err) {
       console.error('Failed to save post:', err)
@@ -137,7 +176,34 @@ export default function Compose() {
     }
   }
 
+  async function deletePost() {
+    if (!id) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/posts/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        addToast('Post deleted.')
+        navigate('/app')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        addToast(err?.detail || 'Failed to delete post', 'error')
+      }
+    } catch (err) {
+      console.error('Delete failed:', err)
+      addToast('Failed to delete post', 'error')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function publishNow() {
+    if (publishGated) {
+      addToast('Connect LinkedIn in Settings first.', 'error')
+      return
+    }
     if (!id) {
       await savePost('draft')
     }
@@ -155,8 +221,13 @@ export default function Compose() {
         addToast('Post published successfully!')
         await loadPost(postId)
       } else {
-        const err = await res.json()
-        addToast(err.detail || 'Publishing failed', 'error')
+        const err = await res.json().catch(() => ({}))
+        if (isLinkedInAuthError(err?.detail)) {
+          addToast('LinkedIn access expired — reconnect to publish.', 'error', LINKEDIN_AUTH_TOAST_OPTIONS)
+          refreshUser?.()
+        } else {
+          addToast(err?.detail || 'Publishing failed', 'error')
+        }
       }
     } catch (err) {
       console.error('Publish failed:', err)
@@ -237,21 +308,21 @@ export default function Compose() {
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-white/55 hover:text-white"
           >
             <ArrowLeft size={18} />
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-foreground">
+            <h1 className="text-xl font-bold text-white">
               {id ? 'Edit Post' : 'New Post'}
             </h1>
             {id && (
               <span className={cn(
                 'text-xs font-medium',
-                draft.postStatus === 'published' && 'text-emerald-600 dark:text-emerald-400',
-                draft.postStatus === 'scheduled' && 'text-purple-600 dark:text-purple-400',
-                draft.postStatus === 'failed' && 'text-destructive',
-                draft.postStatus === 'draft' && 'text-muted-foreground',
+                draft.postStatus === 'published' && 'text-emerald-300',
+                draft.postStatus === 'scheduled' && 'text-purple-300',
+                draft.postStatus === 'failed' && 'text-rose-300',
+                draft.postStatus === 'draft' && 'text-white/55',
               )}>
                 {draft.postStatus.charAt(0).toUpperCase() + draft.postStatus.slice(1)}
               </span>
@@ -259,6 +330,47 @@ export default function Compose() {
           </div>
         </div>
       </div>
+
+      {publishGated && (
+        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5 text-sm text-amber-100">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-300" />
+            <div>
+              <p className="font-semibold">
+                {needsReconnect
+                  ? 'LinkedIn access expired — reconnect to publish.'
+                  : 'Connect LinkedIn to publish your posts.'}
+              </p>
+              <p className="text-xs text-amber-100/80">
+                You can still save drafts. Publishing and scheduling require a connected LinkedIn account.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/app/settings"
+            className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-lg bg-amber-500 px-3 text-sm font-semibold text-black transition-colors hover:bg-amber-400 sm:self-auto"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      )}
+
+      {!publishGated && expiringSoon && (
+        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5 text-sm text-yellow-100">
+            <Clock size={18} className="mt-0.5 shrink-0 text-yellow-300" />
+            <p>
+              LinkedIn access expires in {daysUntilExpiry} day{daysUntilExpiry === 1 ? '' : 's'} — reconnect soon.
+            </p>
+          </div>
+          <Link
+            to="/app/settings"
+            className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-lg border border-yellow-400/40 px-3 text-sm font-semibold text-yellow-100 transition-colors hover:bg-yellow-500/10 sm:self-auto"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      )}
 
       <div className="flex gap-6 items-start">
         <div className="flex-1 min-w-0 space-y-4">
@@ -301,17 +413,36 @@ export default function Compose() {
             />
           )}
 
-          <ActionBar
-            saving={saving}
-            publishing={publishing}
-            showSchedule={schedule.showSchedule}
-            scheduledDate={schedule.scheduledDate}
-            scheduledTime={schedule.scheduledTime}
-            onSaveDraft={() => savePost('draft')}
-            onShowSchedule={() => schedule.setShowSchedule(true)}
-            onSchedule={() => savePost('scheduled')}
-            onPublish={publishNow}
-          />
+          <div
+            className={cn(publishGated && 'compose-publish-gated')}
+            title={publishGated ? 'Connect LinkedIn in Settings first.' : undefined}
+          >
+            <ActionBar
+              saving={saving}
+              publishing={publishing}
+              showSchedule={schedule.showSchedule}
+              scheduledDate={schedule.scheduledDate}
+              scheduledTime={schedule.scheduledTime}
+              onSaveDraft={() => savePost('draft')}
+              onShowSchedule={() => schedule.setShowSchedule(true)}
+              onSchedule={() => savePost('scheduled')}
+              onPublish={publishNow}
+              canDelete={Boolean(id)}
+              deleting={deleting}
+              postStatus={draft.postStatus}
+              onDelete={deletePost}
+              onPreview={() => setShowPreviewModal(true)}
+            />
+            {publishGated && (
+              <style>{`
+                .compose-publish-gated button.bg-emerald-600,
+                .compose-publish-gated button[class*="bg-purple"] {
+                  opacity: 0.45;
+                  cursor: not-allowed;
+                }
+              `}</style>
+            )}
+          </div>
         </div>
 
         <LinkedInPreview
@@ -344,6 +475,35 @@ export default function Compose() {
         onGenerate={generateCaption}
         generating={aiGenerating}
       />
+
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="border-white/10 bg-[#141414] text-white sm:max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>LinkedIn preview</DialogTitle>
+          </DialogHeader>
+          <div className="compose-preview-modal">
+            <LinkedInPreview
+              user={user}
+              plainText={draft.plainText}
+              mediaType={media.mediaType}
+              mediaItems={media.mediaItems}
+              firstComment={draft.firstComment}
+              charCount={charCount}
+              isNearLimit={isNearLimit}
+              isOverLimit={isOverLimit}
+              formatDuration={formatDuration}
+            />
+          </div>
+          <style>{`
+            .compose-preview-modal > div {
+              display: block !important;
+              width: 100% !important;
+              position: static !important;
+              top: auto !important;
+            }
+          `}</style>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

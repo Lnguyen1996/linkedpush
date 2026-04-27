@@ -39,7 +39,7 @@ function ToolbarButton({ onClick, active, children, tooltip }) {
   )
 }
 
-export default function TipTapEditor({ content, onChange, placeholder = 'Write your LinkedIn post...' }) {
+export default function TipTapEditor({ content, onChange, placeholder = 'Write your post...' }) {
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
 

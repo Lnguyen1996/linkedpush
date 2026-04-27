@@ -26,6 +26,18 @@ test-results/
 .vs/
 .idea/
 *.swp
+.DS_Store
 
 # Misc
 nanobanana-output/
+.claude/
+.planning/
+.playwright-mcp/
+.superpowers/
+_temp/
+
+# Local secrets
+.google-oauth-secret.txt
+
+# Data Protection keys (encrypt SocialConnection tokens at rest)
+backend/keys/

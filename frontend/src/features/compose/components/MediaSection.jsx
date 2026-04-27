@@ -37,8 +37,8 @@ export default function MediaSection({
     <Card>
       <CardContent className="pt-0">
         <div className="flex items-center gap-2 mb-3">
-          <ImagePlus size={15} className="text-muted-foreground" />
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Media</span>
+          <ImagePlus size={15} className="text-white/55" />
+          <span className="text-xs font-semibold text-white/55 uppercase tracking-wider">Media</span>
         </div>
 
         <div className="flex items-center gap-2 mb-3">
@@ -50,7 +50,7 @@ export default function MediaSection({
               onClick={() => switchMediaType(type)}
               className={cn(
                 'transition-all',
-                mediaType === type && 'bg-purple-600/20 text-purple-400 border-purple-500/30 hover:bg-purple-600/30'
+                mediaType === type && 'bg-purple/20 text-purple-300 border-purple/30 hover:bg-purple/30'
               )}
             >
               <Icon size={14} />
@@ -58,7 +58,7 @@ export default function MediaSection({
             </Button>
           ))}
           {mediaItems.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearAllMedia} className="text-muted-foreground hover:text-destructive">
+            <Button variant="ghost" size="sm" onClick={clearAllMedia} className="text-white/55 hover:text-rose-300">
               <X size={14} />
               Clear
             </Button>
@@ -81,12 +81,12 @@ export default function MediaSection({
         {uploading && mediaType === 'video' && uploadProgress > 0 && (
           <div className="mb-3">
             <div className="flex items-center gap-2 mb-1.5">
-              <Loader2 size={14} className="animate-spin text-purple-400" />
-              <span className="text-xs text-muted-foreground">Uploading video... {uploadProgress}%</span>
+              <Loader2 size={14} className="animate-spin text-purple-300" />
+              <span className="text-xs text-white/55">Uploading video... {uploadProgress}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full rounded-full bg-purple-500 transition-all duration-300"
+                className="h-full rounded-full bg-purple transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
@@ -95,8 +95,8 @@ export default function MediaSection({
 
         {uploading && !(mediaType === 'video' && uploadProgress > 0) && (
           <div className="flex items-center gap-2 mb-3">
-            <Loader2 size={14} className="animate-spin text-purple-400" />
-            <span className="text-xs text-muted-foreground">
+            <Loader2 size={14} className="animate-spin text-purple-300" />
+            <span className="text-xs text-white/55">
               Uploading{mediaType === 'document' ? ' (converting if PPTX)...' : '...'}
             </span>
           </div>
@@ -107,12 +107,12 @@ export default function MediaSection({
             <div className="flex flex-wrap gap-2">
               {mediaItems.map(item => (
                 <div key={item.id} className="relative group">
-                  <img src={item.url} alt="Attached" className="h-20 w-20 rounded-lg border border-border object-cover shadow-sm" />
+                  <img src={item.url} alt="Attached" className="h-20 w-20 rounded-lg border border-white/10 object-cover shadow-sm" />
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => removeMediaItem(item.id)}
-                    className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-all"
+                    className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-rose-300/10 hover:border-rose-300/30 hover:text-rose-300 transition-all"
                   >
                     <X size={10} />
                   </Button>
@@ -122,32 +122,32 @@ export default function MediaSection({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-white/10 text-white/30 hover:border-purple-500/30 hover:text-purple-400 transition-colors"
+                  className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-white/10 text-white/30 hover:border-purple/30 hover:text-purple-300 transition-colors"
                 >
                   <Plus size={20} />
                 </button>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground">{mediaItems.length}/9 images</p>
+            <p className="text-[10px] text-white/55">{mediaItems.length}/9 images</p>
           </div>
         )}
 
         {mediaType === 'video' && first && (
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
-              <Play size={18} className="text-purple-400" />
+          <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple/10">
+              <Play size={18} className="text-purple-300" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground truncate">{first.original_filename || 'Video'}</p>
+              <p className="text-sm font-medium text-white truncate">{first.original_filename || 'Video'}</p>
               {first.duration && (
-                <p className="text-xs text-muted-foreground">Duration: {formatDuration(first.duration)}</p>
+                <p className="text-xs text-white/55">Duration: {formatDuration(first.duration)}</p>
               )}
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => removeMediaItem(first.id)}
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 text-white/55 hover:text-rose-300"
             >
               <X size={14} />
             </Button>
@@ -155,7 +155,7 @@ export default function MediaSection({
         )}
 
         {mediaType === 'document' && first && (
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5">
+          <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 overflow-hidden">
               <PdfThumbnail
                 src={`/api/media/${first.id}/file`}
@@ -165,8 +165,8 @@ export default function MediaSection({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground truncate">{first.original_filename || 'Document'}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm font-medium text-white truncate">{first.original_filename || 'Document'}</p>
+              <p className="text-xs text-white/55">
                 {first.mime_type === 'application/pdf' ? 'PDF Carousel' : 'Document'}
               </p>
             </div>
@@ -174,7 +174,7 @@ export default function MediaSection({
               variant="ghost"
               size="icon"
               onClick={() => removeMediaItem(first.id)}
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 text-white/55 hover:text-rose-300"
             >
               <X size={14} />
             </Button>

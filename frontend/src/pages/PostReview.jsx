@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Edit3,
   ExternalLink,
@@ -23,10 +25,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
+import { getProfileAvatarSrc } from '@/lib/avatar'
 import PdfThumbnail from '@/components/PdfThumbnail'
+import MediaLightbox from '@/components/MediaLightbox'
 
 const statusConfig = {
-  draft: { label: 'Draft', color: 'bg-white/10 text-slate-300 border-white/10', icon: FileText },
+  draft: { label: 'Draft', color: 'bg-white/10 text-white/70 border-white/10', icon: FileText },
   scheduled: { label: 'Scheduled', color: 'bg-blue-500/15 text-blue-300 border-blue-400/20', icon: Clock },
   publishing: { label: 'Publishing', color: 'bg-amber-500/15 text-amber-300 border-amber-400/20', icon: Clock },
   published: { label: 'Published', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/20', icon: CheckCircle2 },
@@ -70,13 +74,21 @@ function stripHtmlToText(html) {
 }
 
 function UserAvatar({ user, size = 48 }) {
-  if (user?.avatar_url) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const avatarUrl = getProfileAvatarSrc(user)
+
+  useEffect(() => {
+    setImageFailed(false)
+  }, [avatarUrl])
+
+  if (avatarUrl && !imageFailed) {
     return (
       <img
-        src={user.avatar_url}
+        src={avatarUrl}
         alt={user.name || ''}
         className="rounded-full object-cover"
         style={{ width: size, height: size }}
+        onError={() => setImageFailed(true)}
       />
     )
   }
@@ -91,6 +103,88 @@ function UserAvatar({ user, size = 48 }) {
   )
 }
 
+function DocumentCarouselPreview({ media, onOpen }) {
+  const initialPageCount = Number.isFinite(media?.page_count) ? media.page_count : 1
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageCount, setPageCount] = useState(initialPageCount)
+
+  const hasMultiplePages = pageCount > 1
+  const currentPage = Math.min(pageIndex + 1, pageCount)
+
+  const updatePageCount = useCallback((count) => {
+    if (!count || count < 1) return
+    setPageCount(count)
+    setPageIndex(current => Math.min(current, count - 1))
+  }, [])
+
+  function goPrevious(e) {
+    e.stopPropagation()
+    setPageIndex(current => Math.max(0, current - 1))
+  }
+
+  function goNext(e) {
+    e.stopPropagation()
+    setPageIndex(current => Math.min(pageCount - 1, current + 1))
+  }
+
+  return (
+    <div className="mt-4 relative bg-black cursor-pointer" onClick={onOpen}>
+      <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
+        <PdfThumbnail
+          src={media.url}
+          width={920}
+          pageNumber={currentPage}
+          onPageCount={updatePageCount}
+          className="absolute inset-0 w-full h-full object-contain bg-white"
+          fallback={
+            <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
+              <FileText size={40} className="text-blue-400" />
+            </div>
+          }
+        />
+        <div className="absolute left-4 top-4 rounded-md bg-black/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+          Carousel
+        </div>
+        <div className="absolute right-4 top-4 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white/85 backdrop-blur-sm">
+          {currentPage} / {pageCount}
+        </div>
+
+        {hasMultiplePages && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous slide"
+              onClick={goPrevious}
+              disabled={pageIndex === 0}
+              className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-black/75 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button
+              type="button"
+              aria-label="Next slide"
+              onClick={goNext}
+              disabled={pageIndex >= pageCount - 1}
+              className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-black/75 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              <ChevronRight size={24} />
+            </button>
+          </>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-5 pt-14 pb-4">
+          <p className="text-base font-medium text-white truncate">
+            {media.original_filename || 'Document'}
+          </p>
+          <p className="text-sm text-white/70">
+            {media.mime_type === 'application/pdf' ? 'PDF' : 'Document'} · Use arrows to view slides
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PostReview() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -99,6 +193,7 @@ export default function PostReview() {
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
     fetch(`/api/posts/${id}`, { credentials: 'include' })
@@ -151,7 +246,7 @@ export default function PostReview() {
   const canPublish = post.status === 'draft' || post.status === 'scheduled' || post.status === 'failed'
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
+    <div className="mx-auto w-full max-w-4xl p-6">
       {/* Top bar */}
       <div className="mb-5 flex items-center justify-between">
         <button
@@ -173,7 +268,8 @@ export default function PostReview() {
               size="sm"
               onClick={handlePublish}
               disabled={publishing}
-              className="gap-1.5 bg-purple text-white hover:bg-purple-dark"
+              variant="purple"
+              className="gap-1.5"
             >
               <Send size={14} />
               {publishing ? 'Publishing...' : 'Publish Now'}
@@ -183,6 +279,7 @@ export default function PostReview() {
       </div>
 
       {/* Status + Meta bar */}
+      {/* --color-lp-elevated */}
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-[#171717] px-5 py-3">
         <Badge className={cn('gap-1.5 border px-2.5 py-1 text-xs font-semibold', cfg.color)}>
           <StatusIcon size={13} />
@@ -238,48 +335,53 @@ export default function PostReview() {
 
         {/* Attached media — full bleed, no padding */}
         {(() => {
-          const firstMedia = Array.isArray(post.media) && post.media.length > 0 ? post.media[0] : null
+          const mediaArray = Array.isArray(post.media) ? post.media : []
+          const firstMedia = mediaArray.length > 0 ? mediaArray[0] : null
           const mType = firstMedia?.media_type
           if (mType === 'document') {
             return (
-              <div className="mt-3 relative bg-black">
-                <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-                  <PdfThumbnail
-                    src={firstMedia.url}
-                    width={640}
-                    className="absolute inset-0 w-full h-full object-contain bg-white"
-                    fallback={
-                      <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
-                        <FileText size={40} className="text-blue-400" />
-                      </div>
-                    }
-                  />
-                  <div className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
-                    Carousel
-                  </div>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-3">
-                    <p className="text-sm font-medium text-white truncate">
-                      {firstMedia.original_filename || 'Document'}
-                    </p>
-                    <p className="text-[11px] text-white/70">
-                      {firstMedia.mime_type === 'application/pdf' ? 'PDF' : 'Document'} · Swipe to view
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <DocumentCarouselPreview
+                media={firstMedia}
+                onOpen={() => setLightboxIndex(0)}
+              />
             )
           }
           if (mType === 'image') {
             return (
               <div className="mt-3">
-                <img src={firstMedia.url} alt="Post attachment" className="w-full" />
+                {mediaArray.length === 1 ? (
+                  <img
+                    src={firstMedia.url}
+                    alt="Post attachment"
+                    className="w-full cursor-pointer"
+                    onClick={() => setLightboxIndex(0)}
+                  />
+                ) : (
+                  <div
+                    className={cn(
+                      'grid gap-0.5 cursor-pointer',
+                      mediaArray.length === 2 && 'grid-cols-2',
+                      mediaArray.length >= 3 && 'grid-cols-3',
+                    )}
+                    onClick={() => setLightboxIndex(0)}
+                  >
+                    {mediaArray.map((item) => (
+                      <img key={item.id} src={item.url} alt="" className="w-full aspect-square object-cover" />
+                    ))}
+                  </div>
+                )}
               </div>
             )
           }
           if (post.image_url) {
             return (
               <div className="mt-3">
-                <img src={post.image_url} alt="Post attachment" className="w-full" />
+                <img
+                  src={post.image_url}
+                  alt="Post attachment"
+                  className="w-full cursor-pointer"
+                  onClick={() => setLightboxIndex(0)}
+                />
               </div>
             )
           }
@@ -349,6 +451,14 @@ export default function PostReview() {
             View on LinkedIn
           </a>
         </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <MediaLightbox
+          items={Array.isArray(post.media) ? post.media : []}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   )

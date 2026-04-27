@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using LinkedPushApi.Data;
 using LinkedPushApi.DTOs;
 using LinkedPushApi.Models;
 using LinkedPushApi.Services;
 using SixLabors.ImageSharp;
+using System.Text;
 
 namespace LinkedPushApi.Controllers;
 
@@ -89,6 +91,20 @@ public class MediaController : ControllerBase
         return System.IO.File.Exists(pdfPath) ? pdfPath : null;
     }
 
+    private static bool PdfHasRenderablePageContents(string filePath)
+    {
+        var bytes = System.IO.File.ReadAllBytes(filePath);
+        if (bytes.Length == 0)
+            return false;
+
+        var text = Encoding.Latin1.GetString(bytes);
+        return text.Contains("%PDF-", StringComparison.Ordinal)
+            && text.Contains("%%EOF", StringComparison.Ordinal)
+            && text.Contains("/Page", StringComparison.Ordinal)
+            && text.Contains("/Contents", StringComparison.Ordinal)
+            && text.Contains("stream", StringComparison.Ordinal);
+    }
+
     private static MediaResponseDto ToResponse(Media m) => new()
     {
         Id = m.Id,
@@ -105,6 +121,7 @@ public class MediaController : ControllerBase
     };
 
     [HttpPost("")]
+    [EnableRateLimiting("media-upload")]
     public async Task<IActionResult> Upload(IFormFile file, CancellationToken ct)
     {
         var user = await _session.RequireCurrentUser(HttpContext, _db);
@@ -135,7 +152,10 @@ public class MediaController : ControllerBase
                 width = image.Width;
                 height = image.Height;
             }
-            catch { }
+            catch
+            {
+                return BadRequest(new { detail = "Upload a valid image file. The selected file could not be decoded." });
+            }
 
             var ext = Path.GetExtension(file.FileName).TrimStart('.');
             if (string.IsNullOrEmpty(ext)) ext = "jpg";
@@ -233,6 +253,12 @@ public class MediaController : ControllerBase
                 }
             }
 
+            if (!PdfHasRenderablePageContents(filePath))
+            {
+                System.IO.File.Delete(filePath);
+                return BadRequest(new { detail = "PDF appears empty or invalid. Upload a document with visible page content." });
+            }
+
             var fileInfo = new FileInfo(filePath);
             var media = new Media
             {
@@ -279,7 +305,10 @@ public class MediaController : ControllerBase
             width = image.Width;
             height = image.Height;
         }
-        catch { }
+        catch
+        {
+            return BadRequest(new { detail = "Upload a valid image file. The selected file could not be decoded." });
+        }
 
         var ext = Path.GetExtension(file.FileName).TrimStart('.');
         if (string.IsNullOrEmpty(ext))
@@ -329,8 +358,9 @@ public class MediaController : ControllerBase
     [HttpGet("{mediaId:int}/file")]
     public async Task<IActionResult> ServeFile(int mediaId)
     {
+        var user = await _session.RequireCurrentUser(HttpContext, _db);
         var media = await _db.Media
-            .Where(m => m.Id == mediaId)
+            .Where(m => m.Id == mediaId && m.UserId == user.Id)
             .Select(m => new { m.Data, m.MimeType, m.Filename, m.MediaType, m.FilePath })
             .FirstOrDefaultAsync();
 

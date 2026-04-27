@@ -4,16 +4,19 @@ import {
   LayoutDashboard,
   PenSquare,
   Image,
+  Settings as SettingsIcon,
   Menu,
   LogOut,
   Plus,
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
+  Loader2,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import AppLogo from '@/components/AppLogo'
 import { cn } from '@/lib/utils'
+import { getProfileAvatarSrc } from '@/lib/avatar'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -30,13 +33,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { Skeleton } from '@/components/ui/skeleton'
 import NotificationBell from '@/components/NotificationBell'
 
 const navItems = [
   { to: '/app', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/app/compose', icon: PenSquare, label: 'Compose', end: false },
   { to: '/app/media', icon: Image, label: 'Media', end: false },
+  { to: '/app/settings', icon: SettingsIcon, label: 'Settings', end: false },
 ]
 
 function SidebarNav({ scheduledCount, onNavClick, currentPath }) {
@@ -59,12 +62,12 @@ function SidebarNav({ scheduledCount, onNavClick, currentPath }) {
               className={cn(
                 'group relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-[14px] font-semibold tracking-[0.01em] transition-all duration-200',
                 isActive
-                  ? 'bg-gradient-to-r from-purple/25 to-purple/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-purple/35'
+                  ? 'bg-purple/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-purple/30'
                   : 'text-white/65 hover:bg-white/[0.06] hover:text-white hover:ring-1 hover:ring-white/10'
               )}
             >
               {isActive && (
-                <span className="absolute left-1 top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-purple shadow-[0_0_12px_rgba(124,58,237,0.65)]" />
+                <span className="absolute left-1 top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-purple" />
               )}
               <div
                 className={cn(
@@ -105,6 +108,8 @@ function SidebarNav({ scheduledCount, onNavClick, currentPath }) {
 }
 
 function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, currentPath }) {
+  const avatarSrc = getProfileAvatarSrc(user)
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo area */}
@@ -116,7 +121,7 @@ function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, cu
       <div className="px-4 pt-5 pb-2">
         <Button
           asChild
-          className="w-full gap-2 rounded-xl bg-gradient-to-r from-purple to-[#A855F7] text-white hover:from-purple-dark hover:to-purple hover:shadow-md hover:shadow-purple/25 active:scale-[0.98] transition-all duration-200"
+          className="w-full gap-2 rounded-xl bg-purple text-white hover:bg-purple-dark active:scale-[0.98] transition-colors duration-150"
         >
           <NavLink to="/app/compose" onClick={onNavClick}>
             <Plus size={18} strokeWidth={2.6} />
@@ -137,8 +142,8 @@ function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, cu
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           <div className="flex items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-white/[0.04]">
           <Avatar className="h-10 w-10 ring-1 ring-white/20">
-            {user.avatar_url ? (
-              <AvatarImage src={user.avatar_url} alt={user.name} />
+            {avatarSrc ? (
+              <AvatarImage src={avatarSrc} alt={user.name} />
             ) : null}
             <AvatarFallback className="gradient-purple text-white text-xs font-bold">
               {initials}
@@ -149,7 +154,7 @@ function SidebarContent({ user, initials, scheduledCount, logout, onNavClick, cu
               {user.name}
             </div>
             <div className="text-[11px] font-medium text-white/50 truncate">
-              {user.email || 'LinkedIn User'}
+              {user.email || 'LinkedPush User'}
             </div>
           </div>
           <Tooltip delayDuration={300}>
@@ -199,6 +204,8 @@ function IconRailNav({ scheduledCount, currentPath }) {
 }
 
 function IconRailContent({ user, initials, scheduledCount, logout, currentPath, onExpand }) {
+  const avatarSrc = getProfileAvatarSrc(user)
+
   return (
     <div className="flex flex-col items-center h-full py-3">
       {/* Logo icon */}
@@ -235,8 +242,8 @@ function IconRailContent({ user, initials, scheduledCount, logout, currentPath, 
         <TooltipTrigger asChild>
           <div className="cursor-pointer">
             <Avatar className="h-9 w-9 ring-1 ring-white/20">
-              {user.avatar_url ? (
-                <AvatarImage src={user.avatar_url} alt={user.name} />
+              {avatarSrc ? (
+                <AvatarImage src={avatarSrc} alt={user.name} />
               ) : null}
               <AvatarFallback className="gradient-purple text-white text-[10px] font-bold">
                 {initials}
@@ -246,7 +253,7 @@ function IconRailContent({ user, initials, scheduledCount, logout, currentPath, 
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
           <div className="text-sm font-medium">{user.name}</div>
-          <div className="text-xs text-muted-foreground">{user.email}</div>
+          <div className="text-xs text-white/55">{user.email}</div>
         </TooltipContent>
       </Tooltip>
 
@@ -288,10 +295,12 @@ export default function Layout() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-4 w-32" />
+      <div className="relative flex h-screen items-center justify-center lp-shell noise-bg">
+        <div className="flex flex-col items-center gap-3 text-white/60">
+          <Loader2 className="h-6 w-6 animate-spin text-purple" />
+          <span className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/40">
+            Loading workspace
+          </span>
         </div>
       </div>
     )
@@ -309,6 +318,7 @@ export default function Layout() {
         .toUpperCase()
         .slice(0, 2)
     : 'U'
+  const avatarSrc = getProfileAvatarSrc(user)
 
   const currentPage = navItems.find(item => {
     if (item.end) return location.pathname === item.to
@@ -409,8 +419,8 @@ export default function Layout() {
                 {/* Mobile user avatar */}
                 <div className="lg:hidden ml-1">
                   <Avatar>
-                    {user.avatar_url ? (
-                      <AvatarImage src={user.avatar_url} alt={user.name} />
+                    {avatarSrc ? (
+                      <AvatarImage src={avatarSrc} alt={user.name} />
                     ) : null}
                     <AvatarFallback className="gradient-purple text-white text-xs font-semibold">
                       {initials}

@@ -24,9 +24,9 @@ export default function AiComposeModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" showCloseButton>
-        <DialogHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 -m-4 mb-0 p-4 rounded-t-xl">
+        <DialogHeader className="border-b border-white/10 -m-4 mb-0 p-4 rounded-t-xl">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600">
+            <div className="p-2 rounded-xl bg-purple">
               <Sparkles size={16} className="text-white" />
             </div>
             <div>
@@ -37,7 +37,7 @@ export default function AiComposeModal({
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
               Topic / Idea
             </Label>
             <Textarea
@@ -45,11 +45,11 @@ export default function AiComposeModal({
               onChange={e => setTopic(e.target.value)}
               placeholder="Describe what you want to post about..."
               rows={3}
-              className="resize-none focus-visible:border-purple-400 focus-visible:ring-purple-200 dark:focus-visible:ring-purple-800"
+              className="resize-none focus-visible:border-purple/60 focus-visible:ring-[3px] focus-visible:ring-purple/20"
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
               Tone
             </Label>
             <div className="flex gap-2">
@@ -60,7 +60,7 @@ export default function AiComposeModal({
                   onClick={() => setTone(t.value)}
                   className={cn(
                     'flex-1',
-                    tone === t.value && 'bg-purple-50 text-purple-700 border-2 border-purple-200 shadow-sm dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800'
+                    tone === t.value && 'bg-purple/20 text-purple-200 border border-purple/30'
                   )}
                 >
                   <span>{t.emoji}</span>
@@ -72,7 +72,8 @@ export default function AiComposeModal({
           <Button
             onClick={onGenerate}
             disabled={!topic.trim() || generating}
-            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 hover:shadow-lg hover:shadow-purple-500/20 active:scale-[0.98]"
+            variant="purple"
+            className="w-full"
           >
             {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {generating ? 'Generating...' : 'Generate Caption'}

@@ -22,6 +22,29 @@ public class PostsController : ControllerBase
         _linkedIn = linkedIn;
     }
 
+    /// <summary>
+    /// Normalizes a DateTime coming off the wire to UTC Kind so Npgsql will
+    /// accept it for a <c>timestamptz</c> column. The frontend sends
+    /// <c>"yyyy-MM-ddTHH:mm:ss"</c> (no offset) when the user picks a local
+    /// date/time plus an IANA timezone; the system.text.json binder hands us
+    /// a DateTime with <see cref="DateTimeKind.Unspecified"/> which Npgsql
+    /// rejects ("Cannot write DateTime with Kind=Unspecified to PostgreSQL
+    /// type 'timestamp with time zone'"). We treat Unspecified/Local as UTC
+    /// (the scheduler re-interprets the wall-clock using the post's
+    /// <c>Timezone</c> field anyway).
+    /// </summary>
+    private static DateTime? NormalizeToUtc(DateTime? value)
+    {
+        if (!value.HasValue) return null;
+        var dt = value.Value;
+        return dt.Kind switch
+        {
+            DateTimeKind.Utc => dt,
+            DateTimeKind.Local => dt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+        };
+    }
+
     private async Task<List<MediaAttachmentDto>> GetPostMediaAsync(int postId, CancellationToken ct = default)
     {
         return await _db.PostMedia
@@ -75,7 +98,7 @@ public class PostsController : ControllerBase
             UserId = user.Id,
             Title = data.Title,
             Content = data.Content,
-            ScheduledAt = data.ScheduledAt,
+            ScheduledAt = NormalizeToUtc(data.ScheduledAt),
             Timezone = data.Timezone,
             Status = data.Status,
         };
@@ -189,6 +212,7 @@ public class PostsController : ControllerBase
         var post = await _db.Posts
             .Include(p => p.FirstComment)
             .Include(p => p.Image)
+            .Include(p => p.PostMedia).ThenInclude(pm => pm.Media)
             .FirstOrDefaultAsync(p => p.Id == postId, ct);
         if (post == null)
             return NotFound(new { detail = "Post not found" });
@@ -208,7 +232,7 @@ public class PostsController : ControllerBase
 
         if (data.Title != null) post.Title = data.Title;
         if (data.Content != null) post.Content = data.Content;
-        if (data.ScheduledAt.HasValue) post.ScheduledAt = data.ScheduledAt;
+        if (data.ScheduledAt.HasValue) post.ScheduledAt = NormalizeToUtc(data.ScheduledAt);
         if (data.Timezone != null) post.Timezone = data.Timezone;
         if (data.Status != null) post.Status = data.Status;
         post.UpdatedAt = DateTime.UtcNow;
@@ -279,6 +303,7 @@ public class PostsController : ControllerBase
         var loaded = await _db.Posts
             .Include(p => p.FirstComment)
             .Include(p => p.Image)
+            .Include(p => p.PostMedia).ThenInclude(pm => pm.Media)
             .FirstAsync(p => p.Id == post.Id, ct);
         return Ok(await ToResponseAsync(loaded, ct));
     }

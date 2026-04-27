@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  BarChart3,
   CheckCircle2,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  Circle,
   Clock,
   Eye,
   FileText,
   Flame,
   Image,
+  Link2,
   Pencil,
   PenSquare,
   Plus,
@@ -19,9 +20,12 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PdfThumbnail from '@/components/PdfThumbnail'
+import { useAuth } from '@/context/AuthContext'
+import { useLinkedInStatus } from '@/hooks/useLinkedInStatus'
+import { useToast } from '@/components/Toast'
 
 const calendarStatusColors = {
-  draft: { bg: 'bg-white/5', text: 'text-slate-300', dot: 'bg-slate-400' },
+  draft: { bg: 'bg-white/5', text: 'text-white/70', dot: 'bg-white/40' },
   scheduled: { bg: 'bg-blue-500/15', text: 'text-blue-300', dot: 'bg-blue-400' },
   publishing: { bg: 'bg-amber-500/15', text: 'text-amber-300', dot: 'bg-amber-400' },
   published: { bg: 'bg-emerald-500/15', text: 'text-emerald-300', dot: 'bg-emerald-400' },
@@ -29,7 +33,7 @@ const calendarStatusColors = {
 }
 
 const statusConfig = {
-  draft: { label: 'Draft', badge: 'bg-white/5 text-slate-300 border-white/10', dot: 'bg-slate-400', icon: FileText },
+  draft: { label: 'Draft', badge: 'bg-white/5 text-white/70 border-white/10', dot: 'bg-white/40', icon: FileText },
   scheduled: { label: 'Scheduled', badge: 'bg-blue-500/15 text-blue-300 border-blue-400/20', dot: 'bg-blue-400', icon: Clock },
   publishing: { label: 'Publishing', badge: 'bg-amber-500/15 text-amber-300 border-amber-400/20', dot: 'bg-amber-400', icon: Clock },
   published: { label: 'Published', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/20', dot: 'bg-emerald-400', icon: CheckCircle2 },
@@ -59,6 +63,9 @@ function stripHtml(html) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { isConnected } = useLinkedInStatus(user)
+  const { addToast } = useToast()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -69,6 +76,17 @@ export default function Dashboard() {
   useEffect(() => {
     loadPosts()
   }, [filter])
+
+  // One-shot: when AuthContext saw ?linkedin_connected=1 on boot, it stashes a
+  // sessionStorage flag. Pick it up once and toast the user.
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem('lp.oauth_connected') === '1') {
+        window.sessionStorage.removeItem('lp.oauth_connected')
+        addToast('LinkedIn connected successfully', 'success')
+      }
+    } catch {}
+  }, [addToast])
 
   useEffect(() => {
     fetch('/api/posts/streak', { credentials: 'include' })
@@ -110,9 +128,53 @@ export default function Dashboard() {
   )
 
   const hasPostContent = loading || posts.length > 0
+  const showOnboardingCard = !loading && !isConnected && posts.length === 0
 
   return (
     <div className="flex min-h-[calc(100dvh-7.5rem)] flex-1 flex-col text-white lg:min-h-[calc(100dvh-7rem)]">
+      {showOnboardingCard && (
+        <div className="mb-3 rounded-2xl border border-purple/30 bg-gradient-to-br from-purple/15 via-[#111111] to-[#0a0a0a] p-4 sm:p-5 shadow-[0_0_40px_-20px_rgba(124,58,237,0.55)]">
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-base font-bold text-white">Welcome to LinkedPush</h2>
+            <span className="rounded-full border border-purple/40 bg-purple/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-purple-200">
+              Get started
+            </span>
+          </div>
+          <ol className="space-y-2.5">
+            <li className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <Circle size={18} className="shrink-0 text-white/50" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">Connect LinkedIn</p>
+                <p className="text-xs text-white/55">Authorize LinkedPush to publish on your behalf.</p>
+              </div>
+              <Link
+                to="/app/settings"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-purple px-3 text-sm font-semibold text-white transition-colors hover:bg-purple-dark"
+              >
+                <Link2 size={15} />
+                Connect
+              </Link>
+            </li>
+            <li className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 opacity-60">
+              <Circle size={18} className="shrink-0 text-white/30" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white/70">Compose your first post</p>
+                <p className="text-xs text-white/45">Available after you connect LinkedIn.</p>
+              </div>
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-9 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm font-semibold text-white/40"
+                title="Connect LinkedIn first"
+              >
+                <PenSquare size={15} />
+                Compose
+              </button>
+            </li>
+          </ol>
+        </div>
+      )}
+
       {/* Compact action bar */}
       <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2 sm:mb-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -125,14 +187,14 @@ export default function Dashboard() {
           )}
           <div className="flex items-center gap-1 sm:gap-1.5">
             <StatusMini label="Total" value={stats.total} color="bg-purple" />
-            <StatusMini label="Drafts" value={stats.drafts} color="bg-slate-400" />
+            <StatusMini label="Drafts" value={stats.drafts} color="bg-white/40" />
             <StatusMini label="Scheduled" value={stats.scheduled} color="bg-blue-400" hideOnMobile />
             <StatusMini label="Published" value={stats.published} color="bg-emerald-400" hideOnMobile />
           </div>
         </div>
         <Link
           to="/compose"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-purple px-3 sm:px-4 text-sm font-semibold text-white shadow-md shadow-purple/30 transition-all hover:bg-purple-dark"
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-purple px-3 sm:px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-purple-dark hover:-translate-y-px hover:shadow-[0_10px_28px_-8px_rgba(124,58,237,0.55)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
         >
           <Plus size={16} />
           <span className="hidden sm:inline">New Post</span>
@@ -178,7 +240,7 @@ export default function Dashboard() {
                 onClick={() => setFilter(tab.value)}
                 className={cn(
                   'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150',
-                  filter === tab.value ? 'bg-white text-slate-900 shadow-sm' : 'text-white/65 hover:text-white'
+                  filter === tab.value ? 'bg-white/10 text-white shadow-sm' : 'text-white/65 hover:text-white'
                 )}
               >
                 {tab.label}
@@ -194,7 +256,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : posts.length === 0 ? (
-              <div className="relative overflow-hidden rounded-xl border border-purple/30 bg-gradient-to-b from-purple/[0.12] via-[#1a1625] to-[#141218] px-3 py-2.5 shadow-[0_0_28px_-18px_rgba(124,58,237,0.45)] sm:px-4 sm:py-3">
+              <div className="relative overflow-hidden rounded-xl border border-purple/30 bg-gradient-to-b from-purple/15 via-[#111111] to-[#0a0a0a] px-3 py-2.5 shadow-[0_0_28px_-18px_rgba(124,58,237,0.45)] sm:px-4 sm:py-3">
                 <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-purple/25 blur-2xl" />
                 <div className="pointer-events-none absolute -bottom-10 -left-8 h-28 w-28 rounded-full bg-blue-500/15 blur-2xl" />
                 <div className="relative flex items-center gap-3">
@@ -204,7 +266,7 @@ export default function Dashboard() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-white">No posts yet</p>
                     <p className="truncate text-xs text-white/65">
-                      Create your first LinkedIn post to start building your content pipeline.
+                      Create your first post to start building your content pipeline.
                     </p>
                   </div>
                 </div>
@@ -225,11 +287,26 @@ export default function Dashboard() {
                     else MediaIcon = Image
                   }
 
+                  // Show the most relevant date for this post's lifecycle stage,
+                  // so the list row matches the banner and calendar.
+                  const metaDateIso =
+                    (post.status === 'scheduled' || post.status === 'publishing') && post.scheduled_at
+                      ? post.scheduled_at
+                      : post.status === 'published' && post.published_at
+                        ? post.published_at
+                        : post.created_at
+                  const metaDateLabel =
+                    post.status === 'scheduled' || post.status === 'publishing'
+                      ? 'Scheduled for '
+                      : post.status === 'published'
+                        ? 'Published '
+                        : ''
+
                   return (
                     <Link
                       key={post.id}
                       to={`/compose/${post.id}`}
-                      className="group flex items-center gap-2.5 sm:gap-4 rounded-xl sm:rounded-2xl border border-white/10 bg-[#171717] px-3 sm:px-5 py-3 sm:py-4 transition-all hover:border-purple/40 hover:bg-[#1a1a1a]"
+                      className="group flex items-center gap-2.5 sm:gap-4 rounded-xl sm:rounded-2xl border border-white/10 bg-[#171717] px-3 sm:px-5 py-3 sm:py-4 transition-all hover:border-purple/40 hover:bg-white/[0.04]"
                     >
                       <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] ring-1 ring-white/10">
                         <StatusIcon size={21} className="text-white/75" />
@@ -240,7 +317,8 @@ export default function Dashboard() {
                           <span className="truncate">{preview}</span>
                         </div>
                         <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs font-medium text-white/55">
-                          {new Date(post.created_at).toLocaleDateString(undefined, {
+                          {metaDateLabel}
+                          {new Date(metaDateIso).toLocaleDateString(undefined, {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -273,7 +351,8 @@ function DashboardCalendar({
   loadPosts,
 }) {
   const [activePopup, setActivePopup] = useState(null)
-  const [now, setNow] = useState(new Date())
+  const nowRef = useRef(new Date())
+  const [nowTick, setNowTick] = useState(0)
   const [nowLineTop, setNowLineTop] = useState(null)
   const [calView, setCalView] = useState('week')
   const scrollContainerRef = useRef(null)
@@ -305,7 +384,10 @@ function DashboardCalendar({
 
   // Update current time every minute
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000)
+    const timer = setInterval(() => {
+      nowRef.current = new Date()
+      setNowTick(t => t + 1)
+    }, 60000)
     return () => clearInterval(timer)
   }, [])
 
@@ -343,7 +425,7 @@ function DashboardCalendar({
       const y =
         trRect.top -
         wrapRect.top +
-        (now.getMinutes() / 60) * tr.offsetHeight
+        (nowRef.current.getMinutes() / 60) * tr.offsetHeight
       setNowLineTop(Number.isFinite(y) ? y : null)
     }
 
@@ -355,7 +437,7 @@ function DashboardCalendar({
       ro?.disconnect()
       window.removeEventListener('resize', measureNowLine)
     }
-  }, [now, viewHasToday, posts, currentDate, calView])
+  }, [nowTick, viewHasToday, posts, currentDate, calView])
 
   function formatHeaderLabel() {
     if (calView === 'day') {
@@ -485,13 +567,12 @@ function DashboardCalendar({
         </button>
         {isOpen && (
           <div
-            className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-white/15 bg-[#1a1a2e] shadow-2xl shadow-black/60"
+            className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-2xl shadow-black/60"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-1 bg-purple px-3 py-2">
               <button type="button" title="Edit" onClick={() => navigate(`/compose/${post.id}`)} className="rounded-md p-1.5 text-white/80 hover:bg-white/20 hover:text-white"><Pencil size={15} /></button>
               <button type="button" title="Preview" onClick={() => navigate(`/app/post/${post.id}`)} className="rounded-md p-1.5 text-white/80 hover:bg-white/20 hover:text-white"><Eye size={15} /></button>
-              <button type="button" title="Analytics" onClick={() => navigate('/analytics')} className="rounded-md p-1.5 text-white/80 hover:bg-white/20 hover:text-white"><BarChart3 size={15} /></button>
               <button
                 type="button"
                 title="Delete"
@@ -602,9 +683,9 @@ function DashboardCalendar({
                       const dateStr = formatLocalYMD(currentDate)
                       const isToday = dateStr === todayStr
                       const hourPosts = getPostsForDayAndHour(currentDate, hour)
-                      const isPast = dateStr < todayStr || (isToday && hour < now.getHours())
+                      const isPast = dateStr < todayStr || (isToday && hour < nowRef.current.getHours())
                       return (
-                        <tr key={hour} ref={hour === now.getHours() ? currentHourRef : undefined} className="border-b border-white/[0.04]">
+                        <tr key={hour} ref={hour === nowRef.current.getHours() ? currentHourRef : undefined} className="border-b border-white/[0.04]">
                           <td className={cn(
                             "border-r border-white/[0.06] px-2 py-3 align-top text-right text-[11px] font-medium",
                             (isPast && isToday) ? 'text-white/15 line-through' : 'text-white/30'
@@ -620,10 +701,10 @@ function DashboardCalendar({
                               backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 5px)',
                             } : undefined}
                           >
-                            {isToday && hour === now.getHours() && (
+                            {isToday && hour === nowRef.current.getHours() && (
                               <div
                                 className="pointer-events-none absolute left-0 right-0 z-[2] flex items-center"
-                                style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
+                                style={{ top: `${(nowRef.current.getMinutes() / 60) * 100}%` }}
                               >
                                 <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
                                 <div className="h-[2px] flex-1 bg-red-500 shadow-[0_1px_3px_rgba(239,68,68,0.3)]" />
@@ -710,10 +791,10 @@ function DashboardCalendar({
                 </thead>
                 <tbody>
                   {HOURS.map(hour => (
-                    <tr key={hour} ref={hour === now.getHours() ? currentHourRef : undefined} className="border-b border-white/[0.04]">
+                    <tr key={hour} ref={hour === nowRef.current.getHours() ? currentHourRef : undefined} className="border-b border-white/[0.04]">
                       <td className={cn(
                         "border-r border-white/[0.06] px-1 sm:px-2 py-2 sm:py-3 align-top text-right text-[10px] sm:text-[11px] font-medium",
-                        (hour < now.getHours()) ? 'text-white/15 line-through' : 'text-white/30'
+                        (hour < nowRef.current.getHours()) ? 'text-white/15 line-through' : 'text-white/30'
                       )}>
                         {formatHourLabel(hour)}
                       </td>
@@ -722,7 +803,7 @@ function DashboardCalendar({
                         const isToday = dateStr === todayStr
                         const hourPosts = getPostsForDayAndHour(day, hour)
 
-                        const isPast = dateStr < todayStr || (isToday && hour < now.getHours())
+                        const isPast = dateStr < todayStr || (isToday && hour < nowRef.current.getHours())
 
                         return (
                           <td
@@ -735,10 +816,10 @@ function DashboardCalendar({
                               backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 5px)',
                             } : undefined}
                           >
-                            {isToday && hour === now.getHours() && (
+                            {isToday && hour === nowRef.current.getHours() && (
                               <div
                                 className="pointer-events-none absolute left-0 right-0 z-[2] flex items-center"
-                                style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
+                                style={{ top: `${(nowRef.current.getMinutes() / 60) * 100}%` }}
                               >
                                 <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
                                 <div className="h-[2px] flex-1 bg-red-500 shadow-[0_1px_3px_rgba(239,68,68,0.3)]" />

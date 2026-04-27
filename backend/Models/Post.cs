@@ -65,4 +65,5 @@ public class Post
     public Comment? FirstComment { get; set; }
     public Analytics? Analytics { get; set; }
     public List<PostMedia> PostMedia { get; set; } = new();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

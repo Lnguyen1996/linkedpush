@@ -15,10 +15,10 @@ export default function useMediaAttachment({ addToast }) {
       const items = post.media.map(m => ({
         id: m.id,
         url: m.url || `/api/media/${m.id}/file`,
-        media_type: m.media_type || 'image',
-        original_filename: m.original_filename || '',
+        media_type: m.mediaType || 'image',
+        original_filename: m.originalFilename || '',
         duration: m.duration,
-        mime_type: m.mime_type || '',
+        mime_type: m.mimeType || '',
       }))
       setMediaItems(items)
       setMediaIds(items.map(m => m.id))

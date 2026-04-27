@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   BarChart3, Eye, Heart, MessageCircle, Share2, RefreshCw,
-  ArrowUpDown, TrendingUp, Loader2, ArrowUp, ArrowDown
+  ArrowUpDown, TrendingUp, Loader2, ArrowUp, ArrowDown, Link2, AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,25 +12,71 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table, TableHeader, TableBody, TableRow, TableCell, TableHead
 } from '@/components/ui/table'
+import { useAuth } from '@/context/AuthContext'
+import { useLinkedInStatus } from '@/hooks/useLinkedInStatus'
+
+const LINKEDIN_AUTH_ERROR_SUBSTRINGS = [
+  'linkedin not connected',
+  'linkedin access token',
+  'please re-authenticate',
+  'linkedin access expired',
+  'unauthorized',
+]
+
+function isAuthErrorDetail(detail) {
+  if (!detail || typeof detail !== 'string') return false
+  const lower = detail.toLowerCase()
+  return LINKEDIN_AUTH_ERROR_SUBSTRINGS.some(s => lower.includes(s))
+}
 
 export default function Analytics() {
   const navigate = useNavigate()
+  const { user, refreshUser } = useAuth()
+  const { isConnected } = useLinkedInStatus(user)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [authExpired, setAuthExpired] = useState(false)
   const [sortKey, setSortKey] = useState('published_at')
   const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
+    // Opportunistically re-evaluate auth state on mount.
+    refreshUser?.()
+    if (!isConnected) {
+      setLoading(false)
+      return
+    }
     loadAnalytics()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected])
 
   async function loadAnalytics() {
     setLoading(true)
     try {
       const res = await fetch('/api/analytics', { credentials: 'include' })
       if (res.ok) {
-        setData(await res.json())
+        const body = await res.json()
+        if (isAuthErrorDetail(body?.error_message)) {
+          setAuthExpired(true)
+          refreshUser?.()
+          return
+        }
+        setAuthExpired(false)
+        setData(body)
+        return
+      }
+      // Non-OK: distinguish 401 / auth error from generic failures.
+      if (res.status === 401) {
+        setAuthExpired(true)
+        refreshUser?.()
+        return
+      }
+      const errBody = await res.json().catch(() => ({}))
+      if (isAuthErrorDetail(errBody?.detail) || isAuthErrorDetail(errBody?.error_message)) {
+        setAuthExpired(true)
+        refreshUser?.()
+        return
       }
     } catch (err) {
       console.error('Failed to load analytics:', err)
@@ -42,7 +88,12 @@ export default function Analytics() {
   async function handleRefresh() {
     setRefreshing(true)
     try {
-      await fetch('/api/analytics/refresh', { method: 'POST', credentials: 'include' })
+      const res = await fetch('/api/analytics/refresh', { method: 'POST', credentials: 'include' })
+      if (res.status === 401) {
+        setAuthExpired(true)
+        refreshUser?.()
+        return
+      }
       await loadAnalytics()
     } catch (err) {
       console.error('Refresh failed:', err)
@@ -91,6 +142,64 @@ export default function Analytics() {
     )
   }
 
+  if (authExpired) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Analytics</h1>
+            <p className="text-sm text-white/55 mt-1">Track your LinkedIn post performance</p>
+          </div>
+        </div>
+        <Card className="p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-5">
+            <AlertCircle size={28} className="text-amber-300" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">Connection expired</h3>
+          <p className="text-sm text-white/55 max-w-sm mx-auto mb-6">
+            Your LinkedIn access has expired or been revoked. Reconnect to fetch fresh engagement metrics.
+          </p>
+          <Link
+            to="/app/settings"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+          >
+            <RefreshCw size={15} />
+            Reconnect LinkedIn
+          </Link>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!isConnected) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Analytics</h1>
+            <p className="text-sm text-white/55 mt-1">Track your LinkedIn post performance</p>
+          </div>
+        </div>
+        <Card className="p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-purple/10 flex items-center justify-center mx-auto mb-5">
+            <Link2 size={28} className="text-purple-300" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">Connect LinkedIn to see your analytics</h3>
+          <p className="text-sm text-white/55 max-w-sm mx-auto mb-6">
+            Once your LinkedIn account is connected, engagement metrics for your published posts will show up here.
+          </p>
+          <Link
+            to="/app/settings"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-purple px-4 text-sm font-semibold text-white transition-colors hover:bg-purple-dark"
+          >
+            <Link2 size={15} />
+            Go to Settings
+          </Link>
+        </Card>
+      </div>
+    )
+  }
+
   const summary = data?.summary || { total_posts: 0, total_impressions: 0, total_engagements: 0 }
   const avgEngagement = summary.total_posts > 0
     ? (summary.total_engagements / summary.total_posts).toFixed(1)
@@ -102,7 +211,7 @@ export default function Analytics() {
       size="sm"
       onClick={() => toggleSort(field)}
       className={cn(
-        'h-auto px-0 py-0 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground',
+        'h-auto px-0 py-0 text-[11px] font-semibold text-white/55 uppercase tracking-wider hover:text-white',
         align === 'right' && 'ml-auto'
       )}
     >
@@ -110,7 +219,7 @@ export default function Analytics() {
       {sortKey === field ? (
         sortDir === 'asc' ? <ArrowUp size={11} className="text-primary ml-1" /> : <ArrowDown size={11} className="text-primary ml-1" />
       ) : (
-        <ArrowUpDown size={11} className="text-muted-foreground/40 ml-1" />
+        <ArrowUpDown size={11} className="text-white/30 ml-1" />
       )}
     </Button>
   )
@@ -120,8 +229,8 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">Track your LinkedIn post performance</p>
+          <h1 className="text-2xl font-bold text-white">Analytics</h1>
+          <p className="text-sm text-white/55 mt-1">Track your LinkedIn post performance</p>
         </div>
         <Button
           variant="outline"
@@ -170,11 +279,11 @@ export default function Analytics() {
       {/* Posts table */}
       {sortedPosts.length === 0 ? (
         <Card className="p-16 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-purple/5 dark:bg-purple/10 flex items-center justify-center mx-auto mb-5">
+          <div className="w-16 h-16 rounded-2xl bg-purple/10 flex items-center justify-center mx-auto mb-5">
             <BarChart3 size={28} className="text-purple/40" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No published posts yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+          <h3 className="text-lg font-semibold text-white mb-2">No published posts yet</h3>
+          <p className="text-sm text-white/55 max-w-sm mx-auto">
             Publish posts to see analytics here. Your engagement data will appear automatically.
           </p>
         </Card>
@@ -195,13 +304,13 @@ export default function Analytics() {
               {sortedPosts.map((post, idx) => (
                 <TableRow
                   key={post.post_id}
-                  className={cn('cursor-pointer transition-colors hover:bg-white/[0.04]', idx % 2 !== 0 && 'bg-muted/30')}
+                  className={cn('cursor-pointer transition-colors hover:bg-white/[0.04]', idx % 2 !== 0 && 'bg-white/[0.02]')}
                   onClick={() => navigate(`/app/post/${post.post_id}`)}
                 >
                   <TableCell className="px-5 py-4 font-medium max-w-[280px] truncate">
                     {post.content_snippet || post.title || 'Untitled'}
                   </TableCell>
-                  <TableCell className="px-5 py-4 text-muted-foreground">
+                  <TableCell className="px-5 py-4 text-white/55">
                     {post.published_at
                       ? new Date(post.published_at).toLocaleDateString(undefined, {
                           month: 'short', day: 'numeric', year: 'numeric',
@@ -213,10 +322,10 @@ export default function Analytics() {
                     {post.has_engagement ? (
                       <div className="relative">
                         <div
-                          className="absolute inset-y-0 right-0 bg-purple/5 dark:bg-purple/10 rounded-sm transition-all duration-500"
+                          className="absolute inset-y-0 right-0 bg-purple/10 rounded-sm transition-all duration-500"
                           style={{ width: `${maxImpressions > 0 ? (post.impressions / maxImpressions) * 100 : 0}%` }}
                         />
-                        <span className="relative font-medium text-foreground">
+                        <span className="relative font-medium text-white">
                           {post.impressions?.toLocaleString() || '0'}
                         </span>
                       </div>
@@ -228,10 +337,10 @@ export default function Analytics() {
                     {post.has_engagement ? (
                       <div className="relative">
                         <div
-                          className="absolute inset-y-0 right-0 bg-rose-500/5 dark:bg-rose-500/10 rounded-sm transition-all duration-500"
+                          className="absolute inset-y-0 right-0 bg-rose-500/10 rounded-sm transition-all duration-500"
                           style={{ width: `${maxLikes > 0 ? (post.likes / maxLikes) * 100 : 0}%` }}
                         />
-                        <span className="relative font-medium text-foreground">
+                        <span className="relative font-medium text-white">
                           {post.likes?.toLocaleString() || '0'}
                         </span>
                       </div>
@@ -271,10 +380,9 @@ export default function Analytics() {
 
 function SummaryCard({ label, value, icon: Icon, color, detail, format }) {
   const colorMap = {
-    purple: { icon: 'bg-purple/10', text: 'text-purple' },
-    purple: { icon: 'bg-purple-100 dark:bg-purple-950/50', text: 'text-purple-600 dark:text-purple-400' },
-    rose: { icon: 'bg-rose-100 dark:bg-rose-950/50', text: 'text-rose-600 dark:text-rose-400' },
-    emerald: { icon: 'bg-emerald-100 dark:bg-emerald-950/50', text: 'text-emerald-600 dark:text-emerald-400' },
+    purple: { icon: 'bg-purple/10', text: 'text-purple-300' },
+    rose: { icon: 'bg-rose-500/10', text: 'text-rose-300' },
+    emerald: { icon: 'bg-emerald-500/10', text: 'text-emerald-300' },
   }
   const c = colorMap[color] || colorMap.purple
   const displayValue = format ? Number(value).toLocaleString() : value
@@ -287,9 +395,9 @@ function SummaryCard({ label, value, icon: Icon, color, detail, format }) {
             <Icon size={18} className={c.text} />
           </div>
         </div>
-        <div className="text-2xl font-bold text-foreground">{displayValue}</div>
-        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
-        {detail && <div className="text-[10px] text-muted-foreground/60 mt-1">{detail}</div>}
+        <div className="text-2xl font-bold text-white">{displayValue}</div>
+        <div className="text-xs text-white/55 mt-0.5">{label}</div>
+        {detail && <div className="text-[10px] text-white/40 mt-1">{detail}</div>}
       </CardContent>
     </Card>
   )

@@ -8,7 +8,7 @@ export default function FirstCommentSection({ firstComment, setFirstComment, ope
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3.5 text-sm font-medium text-white/55 hover:bg-white/[0.06] transition-colors"
       >
         <div className="flex items-center gap-2">
           <MessageSquare size={15} />

@@ -259,7 +259,8 @@ export default function MediaPreviewEditor({ preview, onSaved, className }) {
               <Button
                 type="button"
                 size="sm"
-                className="h-8 gap-1.5 bg-purple hover:bg-purple-dark"
+                variant="purple"
+                className="h-8 gap-1.5"
                 disabled={saving || !croppedAreaPixels}
                 onClick={handleSaveCrop}
               >

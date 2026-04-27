@@ -39,7 +39,8 @@ public class TokenRefreshService : BackgroundService
                 _logger.LogError(ex, "[TokenRefresh] Error in refresh cycle");
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
+            var jitterMinutes = Random.Shared.NextDouble() * 6 - 3; // ±30 min jitter
+            await Task.Delay(TimeSpan.FromMinutes(30) + TimeSpan.FromMinutes(jitterMinutes), stoppingToken);
         }
     }
 
@@ -49,27 +50,33 @@ public class TokenRefreshService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var linkedInService = scope.ServiceProvider.GetRequiredService<LinkedInService>();
 
-        var cutoff = DateTime.UtcNow.AddHours(1);
+        var cutoff = DateTime.UtcNow.AddDays(7);
 
-        var users = await db.Users
-            .Where(u => u.RefreshToken != null
-                && u.AccessToken != null
-                && u.AccessToken != "dev-token"
-                && u.TokenExpiresAt != null
-                && u.TokenExpiresAt <= cutoff)
+        // Token source is now SocialConnection (planning doc 04 §1.3). The partial
+        // index `IX_social_connections_token_expires_active` serves this query.
+        var connections = await db.SocialConnections
+            .Where(sc => sc.Provider == "linkedin"
+                && sc.Status == "active"
+                && sc.RefreshTokenEncrypted != null
+                && sc.TokenExpiresAt != null
+                && sc.TokenExpiresAt <= cutoff)
             .ToListAsync(ct);
 
-        if (users.Count == 0) return;
+        if (connections.Count == 0) return;
 
-        _logger.LogInformation("[TokenRefresh] Found {Count} user(s) with tokens expiring within 1 hour", users.Count);
+        _logger.LogInformation("[TokenRefresh] Found {Count} SocialConnection(s) with tokens expiring within 7 days", connections.Count);
 
-        foreach (var user in users)
+        foreach (var connection in connections)
         {
-            var success = await linkedInService.RefreshAccessToken(user, db, ct);
-            if (success)
-                _logger.LogInformation("[TokenRefresh] Refreshed token for user {UserId} (expires {Expiry})", user.Id, user.TokenExpiresAt);
-            else
-                _logger.LogWarning("[TokenRefresh] Failed to refresh token for user {UserId} — user needs to re-authenticate", user.Id);
+            var outcome = await linkedInService.RefreshAccessTokenV2(connection, db, ct);
+            if (outcome == LinkedInService.RefreshOutcome.Success || outcome == LinkedInService.RefreshOutcome.AlreadyFresh)
+            {
+                _logger.LogInformation("[TokenRefresh] Refreshed token for user {UserId} (expires {Expiry})", connection.UserId, connection.TokenExpiresAt);
+            }
+            else if (outcome == LinkedInService.RefreshOutcome.Terminal)
+            {
+                _logger.LogWarning("[TokenRefresh] Token for user {UserId} is now expired", connection.UserId);
+            }
         }
     }
 }

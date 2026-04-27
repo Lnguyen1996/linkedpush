@@ -1,23 +1,10 @@
 import { NavLink } from 'react-router-dom'
+import brandMarkPng from '@/assets/brandmark.png'
 
-/** SVG brand mark — purple gradient tile with abstract forward symbol */
+/** Raster brand mark generated for the darker Presence Feed direction */
 export function BrandMark({ className = 'w-9 h-9' }) {
   return (
-    <svg className={className} viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <defs>
-        <linearGradient id="lp-bg" x1="44" y1="40" x2="468" y2="472" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#11001F" />
-          <stop offset="52%" stopColor="#6D28D9" />
-          <stop offset="100%" stopColor="#D20FA9" />
-        </linearGradient>
-      </defs>
-      <rect width="512" height="512" rx="112" fill="url(#lp-bg)" />
-      <g fill="white">
-        <path d="M 132 271 L 252 175 L 252 388 Z" />
-        <path d="M 272 189 L 380 137 L 380 312 L 272 364 Z" />
-        <path d="M 398 176 L 398 324 L 319 364 L 319 390 L 438 330 L 438 145 Z" />
-      </g>
-    </svg>
+    <img className={className} src={brandMarkPng} alt="" aria-hidden />
   )
 }
 
