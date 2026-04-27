@@ -45,7 +45,7 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Write y
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false }),
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder }),
       CharacterCount.configure({ limit: CHAR_LIMIT }),
