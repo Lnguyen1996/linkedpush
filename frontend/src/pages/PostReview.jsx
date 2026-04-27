@@ -128,14 +128,18 @@ function DocumentCarouselPreview({ media, onOpen }) {
   }
 
   return (
-    <div className="mt-4 relative bg-black cursor-pointer" onClick={onOpen}>
-      <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
+    <div className="mt-4 overflow-hidden bg-[#07111f] cursor-pointer" onClick={onOpen}>
+      <div
+        data-testid="document-carousel-frame"
+        className="relative w-full bg-[#07111f]"
+        style={{ aspectRatio: '4 / 5' }}
+      >
         <PdfThumbnail
           src={media.url}
           width={920}
           pageNumber={currentPage}
           onPageCount={updatePageCount}
-          className="absolute inset-0 w-full h-full object-contain bg-white"
+          className="absolute inset-0 h-full w-full object-contain bg-[#07111f]"
           fallback={
             <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
               <FileText size={40} className="text-blue-400" />
@@ -171,15 +175,15 @@ function DocumentCarouselPreview({ media, onOpen }) {
             </button>
           </>
         )}
+      </div>
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-5 pt-14 pb-4">
-          <p className="text-base font-medium text-white truncate">
-            {media.original_filename || 'Document'}
-          </p>
-          <p className="text-sm text-white/70">
-            {media.mime_type === 'application/pdf' ? 'PDF' : 'Document'} · Use arrows to view slides
-          </p>
-        </div>
+      <div className="border-t border-white/10 bg-[#111820] px-5 py-3">
+        <p className="truncate text-base font-medium text-white">
+          {media.original_filename || 'Document'}
+        </p>
+        <p className="text-sm text-white/65">
+          {media.mime_type === 'application/pdf' ? 'PDF' : 'Document'} · Use arrows to view slides
+        </p>
       </div>
     </div>
   )

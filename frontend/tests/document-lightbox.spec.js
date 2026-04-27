@@ -96,6 +96,12 @@ test.describe('Document carousel preview', () => {
     await expect(page.getByText('PDF · Use arrows to view slides')).toBeVisible()
     await expect(page.getByText('1 / 2')).toBeVisible()
 
+    const carouselFrame = page.getByTestId('document-carousel-frame')
+    await expect(carouselFrame).toBeVisible()
+    const frameBox = await carouselFrame.boundingBox()
+    expect(frameBox.width / frameBox.height).toBeGreaterThan(0.78)
+    expect(frameBox.width / frameBox.height).toBeLessThan(0.82)
+
     await page.getByRole('button', { name: 'Next slide' }).click()
     await expect(page.getByText('2 / 2')).toBeVisible()
 
