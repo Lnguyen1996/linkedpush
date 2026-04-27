@@ -338,6 +338,69 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Callback_links_verified_google_login_to_existing_email_user()
+    {
+        var databaseName = Guid.NewGuid().ToString("n");
+        int existingUserId;
+        using (var db = CreateDb(databaseName))
+        {
+            var user = new Models.User
+            {
+                LinkedInId = "legacy-linkedin-user",
+                Name = "Legacy User",
+                Email = "lnguyen4e@gmail.com",
+                PrimaryLoginProvider = "linkedin",
+            };
+            db.Users.Add(user);
+            db.OAuthStates.Add(new Models.OAuthState
+            {
+                State = "link-existing-email-state",
+                CreatedAt = DateTime.UtcNow,
+                Provider = "google",
+                Nonce = "nonce-link",
+            });
+            await db.SaveChangesAsync();
+            existingUserId = user.Id;
+        }
+
+        var pictureUrl = "https://lh3.googleusercontent.com/photo/linked";
+        var idTokenPayload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            $$"""{"sub":"g-linked-user","email":"LNguyen4e@Gmail.com","email_verified":true,"name":"Lam Google","picture":"{{pictureUrl}}","nonce":"nonce-link"}"""))
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        var idToken = $"hdr.{idTokenPayload}.sig";
+        var httpFactory = new RoutingHttpClientFactory(new Dictionary<string, Func<HttpResponseMessage>>
+        {
+            ["https://oauth2.googleapis.com/token"] = () => JsonResponse($"{{\"access_token\":\"atoken\",\"id_token\":\"{idToken}\"}}"),
+            [$"https://oauth2.googleapis.com/tokeninfo?id_token={Uri.EscapeDataString(idToken)}"] =
+                () => JsonResponse("""{"aud":"google-client-id","iss":"https://accounts.google.com","exp":"4102444800","sub":"g-linked-user"}"""),
+        });
+
+        var controller = CreateController(databaseName, overrides: new Dictionary<string, string?>
+        {
+            ["DevMode"] = "true",
+            ["COOKIE_SECURE"] = "false",
+        }, httpFactory: httpFactory);
+
+        var callbackResult = await controller.Callback(code: "auth-code", state: "link-existing-email-state");
+        var redirect = Assert.IsType<RedirectResult>(callbackResult);
+        Assert.Equal("http://localhost:5173/app", redirect.Url);
+
+        using var verifyDb = CreateDb(databaseName);
+        Assert.Equal(1, await verifyDb.Users.CountAsync());
+        var identity = await verifyDb.Identities.FirstOrDefaultAsync(i => i.Provider == "google" && i.ProviderUserId == "g-linked-user");
+        Assert.NotNull(identity);
+        Assert.Equal(existingUserId, identity!.UserId);
+
+        var userAfterLogin = await verifyDb.Users.FindAsync(existingUserId);
+        Assert.NotNull(userAfterLogin);
+        Assert.Equal("Lam Google", userAfterLogin!.Name);
+        Assert.Equal("lnguyen4e@gmail.com", userAfterLogin.Email);
+        Assert.Equal(pictureUrl, userAfterLogin.AvatarUrl);
+        Assert.True(userAfterLogin.EmailVerified);
+        Assert.Equal("google", userAfterLogin.PrimaryLoginProvider);
+    }
+
+    [Fact]
     public async Task Avatar_returns_current_users_google_profile_photo()
     {
         var databaseName = Guid.NewGuid().ToString("n");

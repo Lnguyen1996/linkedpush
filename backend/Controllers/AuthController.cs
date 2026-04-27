@@ -167,7 +167,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { detail = "Failed to decode id_token payload" });
 
         var googleSub = payload.Sub ?? tokenInfo.Sub;
-        var email = payload.Email;
+        var email = NormalizeEmail(payload.Email);
         var emailVerified = payload.EmailVerified;
         var nonce = payload.Nonce;
         var name = payload.Name;
@@ -190,17 +190,28 @@ public class AuthController : ControllerBase
         }
         else
         {
-            user = new User
+            var existingUser = emailVerified && email != null
+                ? await _db.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email)
+                : null;
+
+            if (existingUser != null)
             {
-                LinkedInId = $"google-{googleSub}",
-                Name = string.IsNullOrWhiteSpace(name) ? "Google User" : name!,
-                Email = email,
-                AvatarUrl = avatarUrl,
-                EmailVerified = emailVerified,
-                PrimaryLoginProvider = "google",
-            };
-            _db.Users.Add(user);
-            await _db.SaveChangesAsync();
+                user = existingUser;
+            }
+            else
+            {
+                user = new User
+                {
+                    LinkedInId = $"google-{googleSub}",
+                    Name = string.IsNullOrWhiteSpace(name) ? "Google User" : name!,
+                    Email = email,
+                    AvatarUrl = avatarUrl,
+                    EmailVerified = emailVerified,
+                    PrimaryLoginProvider = "google",
+                };
+                _db.Users.Add(user);
+                await _db.SaveChangesAsync();
+            }
 
             identity = new Identity
             {
@@ -236,6 +247,12 @@ public class AuthController : ControllerBase
             return Redirect($"http://localhost:{cliPort.Value}/cli-callback?ok=1");
 
         return Redirect($"{FrontendUrl}/app");
+    }
+
+    private static string? NormalizeEmail(string? email)
+    {
+        var trimmed = email?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed.ToLowerInvariant();
     }
 
     [HttpGet("linkedin/login")]
