@@ -241,10 +241,10 @@ public class AuthController : ControllerBase
         _db.OAuthStates.Remove(stateInfo);
         await _db.SaveChangesAsync();
 
-        await IssueAuthCookies(user);
+        var sessionToken = await IssueAuthCookies(user);
 
         if (cliPort.HasValue)
-            return Redirect($"http://localhost:{cliPort.Value}/cli-callback?ok=1");
+            return Redirect($"http://localhost:{cliPort.Value}/cli-callback?session={Uri.EscapeDataString(sessionToken)}");
 
         return Redirect($"{FrontendUrl}/app");
     }
@@ -818,7 +818,7 @@ public class AuthController : ControllerBase
         return options;
     }
 
-    private async Task IssueAuthCookies(User user)
+    private async Task<string> IssueAuthCookies(User user)
     {
         var accessToken = _jwt.CreateAccessToken(user.Id);
         var refreshRaw = _jwt.CreateRefreshToken();
@@ -840,6 +840,7 @@ public class AuthController : ControllerBase
 
         var sessionToken = _session.CreateSessionToken(user.Id);
         Response.Cookies.Append("session", sessionToken, BuildSessionCookieOptions(includeLifetime: true));
+        return sessionToken;
     }
 
     private static string CreateRandomUrlToken(int bytes) =>

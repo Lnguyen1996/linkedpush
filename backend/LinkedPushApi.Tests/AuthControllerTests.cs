@@ -294,6 +294,49 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Callback_with_cli_port_redirects_with_session_token()
+    {
+        var databaseName = Guid.NewGuid().ToString("n");
+        using (var db = CreateDb(databaseName))
+        {
+            db.OAuthStates.Add(new Models.OAuthState
+            {
+                State = "cli-state",
+                CreatedAt = DateTime.UtcNow,
+                Provider = "google",
+                Nonce = "nonce-cli",
+                CliPort = 9876,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var httpFactory = new RoutingHttpClientFactory(new Dictionary<string, Func<HttpResponseMessage>>
+        {
+            ["https://oauth2.googleapis.com/token"] = () => JsonResponse("""{"access_token":"ya29.token","id_token":"hdr.eyJzdWIiOiJjbGktZy11c2VyIiwiZW1haWwiOiJjbGlAdGVzdC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkNMSSBVc2VyIiwibm9uY2UiOiJub25jZS1jbGkifQ.sig","expires_in":3600}"""),
+            ["https://oauth2.googleapis.com/tokeninfo?id_token=hdr.eyJzdWIiOiJjbGktZy11c2VyIiwiZW1haWwiOiJjbGlAdGVzdC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkNMSSBVc2VyIiwibm9uY2UiOiJub25jZS1jbGkifQ.sig"] =
+                () => JsonResponse("""{"aud":"google-client-id","iss":"https://accounts.google.com","exp":"4102444800","sub":"cli-g-user","email":"cli@test.com","email_verified":"true","name":"CLI User","nonce":"nonce-cli"}"""),
+        });
+
+        var controller = CreateController(databaseName, overrides: new Dictionary<string, string?>
+        {
+            ["DevMode"] = "true",
+            ["COOKIE_SECURE"] = "false",
+        }, httpFactory: httpFactory);
+
+        var callbackResult = await controller.Callback(code: "auth-code", state: "cli-state");
+
+        var redirect = Assert.IsType<RedirectResult>(callbackResult);
+        Assert.StartsWith("http://localhost:9876/cli-callback?", redirect.Url);
+        var query = QueryHelpers.ParseQuery(new Uri(redirect.Url!).Query);
+        var session = query["session"].ToString();
+        Assert.False(string.IsNullOrWhiteSpace(session));
+
+        var testConfig = controller.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var tokenData = new SessionService(testConfig, new JwtService(testConfig)).VerifySessionToken(session);
+        Assert.NotNull(tokenData);
+    }
+
+    [Fact]
     public async Task Callback_extracts_picture_from_id_token_payload()
     {
         var databaseName = Guid.NewGuid().ToString("n");
