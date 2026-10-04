@@ -58,8 +58,9 @@ function NotificationBell() {
       }}
     >
       <PopoverTrigger
-        render={
+        render={(triggerProps) => (
           <Button
+            {...triggerProps}
             type="button"
             variant="ghost"
             size="icon"
@@ -73,7 +74,7 @@ function NotificationBell() {
               </span>
             )}
           </Button>
-        }
+        )}
       />
       <PopoverContent
         align="end"
